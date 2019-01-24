@@ -34,7 +34,7 @@ The instructions are available [on the GNOME wiki](https://wiki.gnome.org/Projec
 
 It's recommended you install the extension via the Gnome Shell Extensions website.
 
-Visit [this extension's page on extensions.gnome.org](https://extensions.gnome.org/extension/120/ping-monitor/),
+Visit [this extension's page on extensions.gnome.org](https://extensions.gnome.org/extension/1607/ping-monitor/),
 preferably in Firefox, and install by clicking the toggle button next to the extension's name.
 
 If the install was successful, the toggle button should now show "ON".
