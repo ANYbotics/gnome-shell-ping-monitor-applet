@@ -1,0 +1,1196 @@
+/* -*- mode: js2; js2-basic-offset: 4; indent-tabs-mode: nil -*- */
+
+// ping-monitor: Gnome shell extension displaying system informations in gnome shell status bar, such as memory usage, cpu usage, network rates…
+// Copyright (C) 2011 Florian Mounier aka paradoxxxzero
+
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+// Author: Florian Mounier aka paradoxxxzero
+
+/* Ugly. This is here so that we don't crash old libnm-glib based shells unnecessarily
+ * by loading the new libnm.so. Should go away eventually */
+const libnm_glib = imports.gi.GIRepository.Repository.get_default().is_registered('NMClient', '1.0');
+
+let debugOutput = false;
+let smDepsGtop = true;
+
+const Config = imports.misc.config;
+const Clutter = imports.gi.Clutter;
+const GLib = imports.gi.GLib;
+
+const Gio = imports.gi.Gio;
+const Lang = imports.lang;
+const Shell = imports.gi.Shell;
+const St = imports.gi.St;
+const Power = imports.ui.status.power;
+// const System = imports.system;
+const ModalDialog = imports.ui.modalDialog;
+
+const ExtensionSystem = imports.ui.extensionSystem;
+const ExtensionUtils = imports.misc.extensionUtils;
+
+const Me = ExtensionUtils.getCurrentExtension();
+const Convenience = Me.imports.convenience;
+const Compat = Me.imports.compat;
+
+let Background, GTop, IconSize, Locale, Schema, StatusArea, Style, gc_timeout, menu_timeout;
+
+try {
+    GTop = imports.gi.GTop;
+} catch (e) {
+    log('[Ping monitor] catched error: ' + e);
+    smDepsGtop = false;
+}
+
+const Main = imports.ui.main;
+const Panel = imports.ui.panel;
+const PanelMenu = imports.ui.panelMenu;
+const PopupMenu = imports.ui.popupMenu;
+
+const Gettext = imports.gettext.domain('ping-monitor');
+const Mainloop = imports.mainloop;
+const Util = imports.misc.util;
+const _ = Gettext.gettext;
+
+const MESSAGE = _('Dependencies Missing\n\
+Please install: \n\
+libgtop and gir bindings\n\
+\t    on Ubuntu: gir1.2-gtop-2.0\n\
+\t    on Fedora: libgtop2-devel\n\
+\t    on Arch: libgtop\n\
+\t    on openSUSE: typelib-1_0-GTop-2_0\n');
+
+// stale network shares will cause the shell to freeze, enable this with caution
+const ENABLE_NETWORK_DISK_USAGE = false;
+
+let extension = imports.misc.extensionUtils.getCurrentExtension();
+let metadata = extension.metadata;
+let shell_Version = Config.PACKAGE_VERSION;
+
+function print_info(str) {
+    log('[Ping monitor INFO] ' + str);
+}
+
+function print_debug(str) {
+    if (debugOutput) {
+        log('[Ping monitor DEBUG] ' + str);
+    }
+}
+
+function l_limit(t) {
+    return (t > 0) ? t : 1000;
+}
+
+function change_text() {
+    this.label.visible = this.show_name;
+}
+
+function change_style() {
+    this.text_box.visible = true;
+    this.chart.actor.visible = this.visible;
+}
+
+function build_menu_info() {
+    let elts = Main.__sm.elts;
+    let tray_menu = Main.__sm.tray.menu;
+
+    if (tray_menu._getMenuItems().length &&
+        typeof tray_menu._getMenuItems()[0].actor.get_last_child() !== 'undefined') {
+        tray_menu._getMenuItems()[0].actor.get_last_child().destroy_all_children();
+        for (let elt in elts) {
+            elts[elt].menu_items = elts[elt].create_menu_items();
+        }
+    } else {
+        return;
+    }
+
+    let menu_info_box_table = new St.Widget({
+        style: 'padding: 10px 0px 10px 0px; spacing-rows: 10px; spacing-columns: 15px;',
+        layout_manager: new Clutter.TableLayout()
+    });
+    let menu_info_box_table_layout = menu_info_box_table.layout_manager;
+
+    // Populate Table
+    let row_index = 0;
+    for (let elt in elts) {
+        if (!elts[elt].menu_visible) {
+            continue;
+        }
+
+        // Add item name to table
+        menu_info_box_table_layout.pack(
+            new St.Label({
+                text: elts[elt].name,
+                style_class: Style.get('sm-title')}), 0, row_index);
+
+        // Add item data to table
+        let col_index = 1;
+        for (let item in elts[elt].menu_items) {
+            menu_info_box_table_layout.pack(
+                elts[elt].menu_items[item], col_index, row_index);
+
+            col_index++;
+        }
+
+        row_index++;
+    }
+    tray_menu._getMenuItems()[0].actor.get_last_child().add(menu_info_box_table, {expand: true});
+}
+
+function change_menu() {
+    this.menu_visible = true;
+    build_menu_info();
+}
+
+let color_from_string = Compat.color_from_string;
+
+const smStyleManager = new Lang.Class({
+    Name: 'PingMonitor.smStyleManager',
+    _extension: '',
+    _iconsize: 1,
+    _diskunits: _('MiB/s'),
+    _netunits_kbytes: _('KiB/s'),
+    _netunits_mbytes: _('MiB/s'),
+    _netunits_kbits: _('kbit/s'),
+    _netunits_mbits: _('Mbit/s'),
+    _pie_width: 300,
+    _pie_height: 300,
+    _pie_fontsize: 14,
+    _bar_width: 300,
+    _bar_height: 150,
+    _bar_fontsize: 14,
+    _text_scaling: 1,
+
+    _init: function () {
+        this._compact = Schema.get_boolean('compact-display');
+        if (this._compact) {
+            this._extension = '-compact';
+            this._iconsize = 3 / 5;
+            this._diskunits = _('MB');
+            this._netunits_kbytes = _('kB');
+            this._netunits_mbytes = _('MB');
+            this._netunits_kbits = 'kb';
+            this._netunits_mbits = 'Mb';
+            this._pie_width *= 4 / 5;
+            this._pie_height *= 4 / 5;
+            this._pie_fontsize = 12;
+            this._bar_width *= 3 / 5;
+            this._bar_height *= 3 / 5;
+            this._bar_fontsize = 12;
+        }
+
+        let interfaceSettings = new Gio.Settings({
+            schema: 'org.gnome.desktop.interface'
+        });
+        this._text_scaling = interfaceSettings.get_double('text-scaling-factor');
+        if (!this._text_scaling) {
+            this._text_scaling = 1;
+        }
+    },
+    get: function (style) {
+        return style + this._extension;
+    },
+    iconsize: function () {
+        return this._iconsize;
+    },
+    diskunits: function () {
+        return this._diskunits;
+    },
+    netunits_kbytes: function () {
+        return this._netunits_kbytes;
+    },
+    netunits_mbytes: function () {
+        return this._netunits_mbytes;
+    },
+    netunits_kbits: function () {
+        return this._netunits_kbits;
+    },
+    netunits_mbits: function () {
+        return this._netunits_mbits;
+    },
+    pie_width: function () {
+        return this._pie_width;
+    },
+    pie_height: function () {
+        return this._pie_height;
+    },
+    pie_fontsize: function () {
+        return this._pie_fontsize * this._text_scaling;
+    },
+    bar_width: function () {
+        return this._bar_width;
+    },
+    bar_height: function () {
+        return this._bar_height;
+    },
+    bar_fontsize: function () {
+        return this._bar_fontsize * this._text_scaling;
+    },
+    text_scaling: function () {
+        return this._text_scaling;
+    },
+});
+
+const smDialog = Lang.Class({
+    Name: 'PingMonitor.smDialog',
+    Extends: ModalDialog.ModalDialog,
+
+    _init: function () {
+        this.parent({styleClass: 'prompt-dialog'});
+        let mainContentBox = new St.BoxLayout({style_class: 'prompt-dialog-main-layout',
+            vertical: false});
+        this.contentLayout.add(mainContentBox,
+            {x_fill: true,
+                y_fill: true});
+
+        let messageBox = new St.BoxLayout({style_class: 'prompt-dialog-message-layout',
+            vertical: true});
+        mainContentBox.add(messageBox,
+            {y_align: St.Align.START});
+
+        this._subjectLabel = new St.Label({style_class: 'prompt-dialog-headline',
+            text: _('Ping Monitor Extension')});
+
+        messageBox.add(this._subjectLabel,
+            {y_fill: false,
+                y_align: St.Align.START});
+
+        this._descriptionLabel = new St.Label({style_class: 'prompt-dialog-description',
+            text: MESSAGE});
+
+        messageBox.add(this._descriptionLabel,
+            {y_fill: true,
+                y_align: St.Align.START});
+
+
+        this.setButtons([
+            {
+                label: _('Cancel'),
+                action: Lang.bind(this, function () {
+                    this.close();
+                }),
+                key: Clutter.Escape
+            }
+        ]);
+    },
+
+});
+
+const StatusSquare = new Lang.Class({
+    Name: 'PingMonitor.StatusSquare',
+
+    _width: 10,
+    _color: '#ff0000',
+
+    _init: function (height, parent) {
+        this.actor = new St.DrawingArea({style_class: Style.get('sm-chart'), reactive: false});
+        this.parentC = parent;
+        this.actor.set_width(this._width);
+        this.actor.set_height(this.height = height);
+        this.actor.connect('repaint', Lang.bind(this, this._draw));
+        this.data = [];
+        // for (let i = 0; i < this.parentC.colors.length; i++) {
+        //     this.data[i] = [];
+        // }
+    },
+    update: function (color) {
+        this._color = color;
+        let data_a = this.parentC.vals;
+        // if (data_a.length !== this.parentC.colors.length) {
+        //     return;
+        // }
+        let accdata = [];
+        for (let l = 0; l < data_a.length; l++) {
+            accdata[l] = (l === 0) ? data_a[0] : accdata[l - 1] + ((data_a[l] > 0) ? data_a[l] : 0);
+            this.data[l].push(accdata[l]);
+            if (this.data[l].length > this._width) {
+                this.data[l].shift();
+            }
+        }
+        if (!this.actor.visible) {
+            return;
+        }
+        this.actor.queue_repaint();
+    },
+    _draw: function () {
+        if (!this.actor.visible) {
+            return;
+        }
+        let [width, height] = this.actor.get_surface_size();
+        let cr = this.actor.get_context();
+        Clutter.cairo_set_source_color(cr, color_from_string(this._color));
+        cr.rectangle(0, (height-this._width)/2, this._width, this._width);
+        cr.fill();
+        if (Compat.versionCompare(shell_Version, '3.7.4')) {
+            cr.$dispose();
+        }
+    },
+    resize: function (schema, key) {
+        // let old_width = this._width;
+        // this._width = Schema.get_int(key);
+        // if (old_width === this._width) {
+        //     return;
+        // }
+        // this.actor.set_width(this._width);
+        // if (this._width < this.data[0].length) {
+        //     for (let i = 0; i < this.parentC.colors.length; i++) {
+        //         this.data[i] = this.data[i].slice(-this._width);
+        //     }
+        // }
+    }
+});
+
+const TipItem = new Lang.Class({
+    Name: 'PingMonitor.TipItem',
+    Extends: PopupMenu.PopupBaseMenuItem,
+
+    _init: function () {
+        PopupMenu.PopupBaseMenuItem.prototype._init.call(this);
+        this.actor.remove_style_class_name('popup-menu-item');
+        this.actor.add_style_class_name('sm-tooltip-item');
+    }
+});
+
+/**
+ * Tooltip when hovering
+ * @type {Lang.Class}
+ */
+const TipMenu = new Lang.Class({
+    Name: 'PingMonitor.TipMenu',
+    Extends: PopupMenu.PopupMenuBase,
+
+    _init: function (sourceActor) {
+        // PopupMenu.PopupMenuBase.prototype._init.call(this, sourceActor, 'sm-tooltip-box');
+        this.parent(sourceActor, 'sm-tooltip-box');
+        this.actor = new Shell.GenericContainer();
+        this.actor.connect('get-preferred-width',
+            Lang.bind(this, this._boxGetPreferredWidth));
+        this.actor.connect('get-preferred-height',
+            Lang.bind(this, this._boxGetPreferredHeight));
+        this.actor.connect('allocate', Lang.bind(this, this._boxAllocate));
+        this.actor.add_actor(this.box);
+    },
+    _boxGetPreferredWidth: function (actor, forHeight, alloc) {
+        // let columnWidths = this.getColumnWidths();
+        // this.setColumnWidths(columnWidths);
+
+        [alloc.min_size, alloc.natural_size] = this.box.get_preferred_width(forHeight);
+    },
+    _boxGetPreferredHeight: function (actor, forWidth, alloc) {
+        [alloc.min_size, alloc.natural_size] = this.box.get_preferred_height(forWidth);
+    },
+    _boxAllocate: function (actor, box, flags) {
+        this.box.allocate(box, flags);
+    },
+    _shift: function () {
+        // Probably old but works
+        let node = this.sourceActor.get_theme_node();
+        let contentbox = node.get_content_box(this.sourceActor.get_allocation_box());
+        let allocation = Shell.util_get_transformed_allocation(this.sourceActor);
+        let monitor = Main.layoutManager.findMonitorForActor(this.sourceActor)
+        let [x, y] = [allocation.x1 + contentbox.x1,
+            allocation.y1 + contentbox.y1];
+        let [cx, cy] = [allocation.x1 + (contentbox.x1 + contentbox.x2) / 2,
+            allocation.y1 + (contentbox.y1 + contentbox.y2) / 2];
+        let [xm, ym] = [allocation.x1 + contentbox.x2,
+            allocation.y1 + contentbox.y2];
+        let [width, height] = this.actor.get_size();
+        let tipx = cx - width / 2;
+        tipx = Math.max(tipx, monitor.x);
+        tipx = Math.min(tipx, monitor.x + monitor.width - width);
+        let tipy = Math.floor(ym);
+        // Hacky condition to determine if the status bar is at the top or at the bottom of the screen
+        if (allocation.y1 / monitor.height > 0.3) {
+            tipy = allocation.y1 - height; // If it is at the bottom, place the tooltip above instead of below
+        }
+        this.actor.set_position(tipx, tipy);
+    },
+    open: function (animate) {
+        if (this.isOpen) {
+            return;
+        }
+
+        this.isOpen = true;
+        this.actor.show();
+        this._shift();
+        this.actor.raise_top();
+        this.emit('open-state-changed', true);
+    },
+    close: function (animate) {
+        this.isOpen = false;
+        this.actor.hide();
+        this.emit('open-state-changed', false);
+    }
+});
+
+const TipBox = new Lang.Class({
+    Name: 'PingMonitor.TipBox',
+
+    show_tooltip: true, // show mouseover tooltip
+
+    _init: function () {
+        this.actor = new St.BoxLayout({reactive: true}); // this is visualized
+        this.actor._delegate = this;
+        this.set_tip(new TipMenu(this.actor));
+        this.in_to = this.out_to = 0;
+        this.actor.connect('enter-event', Lang.bind(this, this.on_enter));
+        this.actor.connect('leave-event', Lang.bind(this, this.on_leave));
+    },
+    set_tip: function (tipmenu) {
+        if (this.tipmenu) {
+            this.tipmenu.destroy();
+        }
+        this.tipmenu = tipmenu;
+        if (this.tipmenu) {
+            Main.uiGroup.add_actor(this.tipmenu.actor);
+            this.hide_tip();
+        }
+    },
+    show_tip: function () {
+        if (!this.tipmenu) {
+            return;
+        }
+        this.tipmenu.open();
+        if (this.in_to) {
+            Mainloop.source_remove(this.in_to);
+            this.in_to = 0;
+        }
+    },
+    hide_tip: function () {
+        if (!this.tipmenu) {
+            return;
+        }
+        this.tipmenu.close();
+        if (this.out_to) {
+            Mainloop.source_remove(this.out_to);
+            this.out_to = 0;
+        }
+        if (this.in_to) {
+            Mainloop.source_remove(this.in_to);
+            this.in_to = 0;
+        }
+    },
+    on_enter: function () {
+        let show_tooltip = this.show_tooltip;
+
+        if (!show_tooltip) {
+            return;
+        }
+
+        if (this.out_to) {
+            Mainloop.source_remove(this.out_to);
+            this.out_to = 0;
+        }
+        if (!this.in_to) {
+            this.in_to = Mainloop.timeout_add(500,
+                Lang.bind(this,
+                    this.show_tip));
+        }
+    },
+    on_leave: function () {
+        if (this.in_to) {
+            Mainloop.source_remove(this.in_to);
+            this.in_to = 0;
+        }
+        if (!this.out_to) {
+            this.out_to = Mainloop.timeout_add(500,
+                Lang.bind(this,
+                    this.hide_tip));
+        }
+    },
+    destroy: function () {
+        if (this.in_to) {
+            Mainloop.source_remove(this.in_to);
+            this.in_to = 0;
+        }
+
+        if (this.out_to) {
+            Mainloop.source_remove(this.out_to);
+            this.out_to = 0;
+        }
+
+        this.actor.destroy();
+    },
+});
+
+const ElementBase = new Lang.Class({
+    Name: 'PingMonitor.ElementBase',
+    Extends: TipBox,
+
+    elt: '',
+    name: '',
+    color_name: [],
+    text_items: [],
+    menu_items: [],
+    menu_visible: true,
+    color: '#ff0000',
+
+    refresh_interval: 5000, // milliseconds between ping
+    visible: true, // show in the system tray
+
+
+    _init: function () {
+        this.parent(arguments);
+        this.vals = [];
+        this.tip_labels = [];
+        this.tip_vals = [];
+        this.tip_unit_labels = [];
+
+        this.chart = new StatusSquare(IconSize, this);
+        Schema.connect('changed::background',
+            Lang.bind(this,
+                function () {
+                    this.chart.actor.queue_repaint();
+                }));
+
+        this.actor.visible = true;//Schema.get_boolean(this.elt + '-display');
+        // Schema.connect(
+        //     'changed::' + this.elt + '-display',
+        //     Lang.bind(this,
+        //         function (schema, key) {
+        //             this.actor.visible = Schema.get_boolean(key);
+        //         }));
+
+        this.interval = 3000; // milliseconds
+        this.timeout = Mainloop.timeout_add(
+            this.interval,
+            Lang.bind(this, this.update)
+        );
+        /*
+        Schema.connect(
+            'changed::' + this.elt + '-refresh-time',
+            Lang.bind(this,
+                function (schema, key) {
+                    Mainloop.source_remove(this.timeout);
+                    this.timeout = null;
+                    this.interval = l_limit(Schema.get_int(key));
+                    this.timeout = Mainloop.timeout_add(
+                        this.interval, Lang.bind(this, this.update));
+                }));
+        Schema.connect('changed::' + this.elt + '-graph-width',
+            Lang.bind(this.chart, this.chart.resize));
+
+        if (this.elt === 'thermal') {
+            Schema.connect('changed::thermal-threshold',
+                Lang.bind(this,
+                    function () {
+                        Mainloop.source_remove(this.timeout);
+                        this.timeout = null;
+                        this.reset_style();
+                        this.timeout = Mainloop.timeout_add(
+                            this.interval, Lang.bind(this, this.update));
+                    }));
+        }
+        */
+
+        this.label = new St.Label({text: this.name, style_class: Style.get('sm-status-label')});
+        // this.label = new St.Label({text: this.elt === 'memory' ? _('mem') : _(this.elt),
+        //     style_class: Style.get('sm-status-label')});
+        change_text.call(this);
+        // Schema.connect('changed::' + this.elt + '-show-text', Lang.bind(this, change_text));
+
+        this.menu_visible = true;
+        // this.menu_visible = Schema.get_boolean(this.elt + '-show-menu');
+        // Schema.connect('changed::' + this.elt + '-show-menu', Lang.bind(this, change_menu));
+
+        this.actor.add_actor(this.label); //this.actor = new St.BoxLayout({reactive: true});
+        this.text_box = new St.BoxLayout();
+
+        // this.actor.add_actor(this.text_box);
+        this.text_items = this.create_text_items();
+        // for (let item in this.text_items) {
+        //     this.text_box.add_actor(this.text_items[item]);
+        // }
+        this.actor.add_actor(this.chart.actor);
+        change_style.call(this);
+        // Schema.connect('changed::' + this.elt + '-style', Lang.bind(this, change_style));
+        this.menu_items = this.create_menu_items();
+
+        this.chart.actor.queue_repaint();
+    },
+    tip_format: function () {
+        for (let i = 0; i < this.color_name.length; i++) {
+            let tipline = new TipItem();
+            this.tipmenu.addMenuItem(tipline);
+            // tipline.actor.add(new St.Label({text: _(this.color_name[i])}));
+            this.tip_labels[i] = new St.Label({text: ''});
+            tipline.actor.add(this.tip_labels[i]);
+
+            // this.tip_unit_labels[i] = new St.Label({text: unit[i]});
+            // tipline.actor.add(this.tip_unit_labels[i]);
+            this.tip_vals[i] = 0;
+        }
+    },
+    update: function () {
+        if (!this.menu_visible && !this.actor.visible) {
+            return false;
+        }
+        this.refresh();
+        this._apply();
+
+        this.chart.update(this.color);
+        for (let i = 0; i < this.tip_vals.length; i++) {
+            this.tip_labels[i].text = this.tip_vals[i].toString();
+        }
+        return true;
+    },
+    reset_style: function () {
+        this.text_items[0].set_style('color: rgba(255, 255, 255, 1)');
+    },
+    threshold: function () {
+        if (Schema.get_int('thermal-threshold')) {
+            if (this.temp_over_threshold) {
+                this.text_items[0].set_style('color: rgba(255, 0, 0, 1)');
+            } else {
+                this.text_items[0].set_style('color: rgba(255, 255, 255, 1)');
+            }
+        }
+    },
+    destroy: function () {
+        TipBox.prototype.destroy.call(this);
+        if (this.timeout) {
+            Mainloop.source_remove(this.timeout);
+            this.timeout = null;
+        }
+    }
+});
+
+const Ping = new Lang.Class({
+    Name: 'PingMonitor.Ping',
+    Extends: ElementBase,
+
+    elt: 'ping', // element type
+    id: 0, // id
+    tag: '', // tag
+    name: '', // name
+    address: '8.8.8.8', // ip address
+    ping_count: 2, // number of ping per refresh interval
+    ping_interval: 0.5, // next ping after x seconds
+    ping_deadline: 3, // max seconds for ping
+    // refresh_interval: 5000, // milliseconds between ping
+    active: true, // run ping
+    // visible: true, // show in the system tray
+    show_name: true, // show name in the system tray
+    show_address: true, // show address in the system tray
+    // show_tooltip: true, // show mouseover tooltip
+    warning_treshold: 20, // if ping ms higher -> orange
+    ping_message: '', // the last ping result
+
+    color_name: ['used'],
+
+    _init: function (id, tag, name, address, ping_count, ping_interval,
+                     ping_deadline, refresh_interval, active, visible,
+                     show_name, show_address, show_tooltip, warning_threshold) {
+        this.id = id;
+        this.tag = tag;
+        if (show_address) {
+            this.name = name + '\n' + address;
+        } else {
+            this.name = name;
+        }
+        this.address = address;
+        this.ping_count = ping_count;
+        this.ping_interval = ping_interval;
+        this.ping_deadline = ping_deadline;
+        this.refresh_interval = refresh_interval;
+        this.active = active;
+        this.visible = visible;
+        this.show_name = show_name;
+        this.show_address = show_address;
+        this.show_tooltip = show_tooltip;
+        this.warning_threshold = warning_threshold;
+        this.parent();
+        this.tip_format();
+        this.update();
+    },
+    refresh: function () {
+        // Run asynchronously, to avoid shell freeze
+        try {
+            let path = Me.dir.get_path();
+            let script = [
+                '/bin/bash',
+                path + '/ping.sh',
+                this.address,
+                '' + this.ping_count,
+                '' + this.ping_deadline,
+                '' + this.ping_interval
+            ];
+
+            let [, pid, in_fd, out_fd, err_fd] = GLib.spawn_async_with_pipes(
+                null,
+                script,
+                null,
+                GLib.SpawnFlags.DO_NOT_REAP_CHILD,
+                null);
+
+            let _tmp_stream = new Gio.DataInputStream({
+                base_stream: new Gio.UnixInputStream({fd: in_fd})
+            });
+            _tmp_stream.close(null);
+
+            // Let's buffer the command's error - that's an input for us!
+            this._process_error = new Gio.DataInputStream({
+                base_stream: new Gio.UnixInputStream({fd: err_fd})
+            });
+
+            // Let's buffer the command's output - that's an input for us!
+            this._process_stream = new Gio.DataInputStream({
+                base_stream: new Gio.UnixInputStream({fd: out_fd})
+            });
+
+            // We will process the output at once when it's done
+            this._process_sourceId = GLib.child_watch_add(
+                GLib.PRIORITY_DEFAULT,
+                pid,
+                Lang.bind(this, this._readPingResult)
+            );
+        } catch (err) {
+            // Deal with the error
+        }
+    },
+    _readPingResult: function () {
+        print_debug('------------------------------------------------------------------------------');
+        print_debug('name: ' + this.name);
+        let out, size;
+
+        let has_error = false;
+        if (this._process_error) {
+            [out, size] = this._process_error.read_line_utf8(null);
+            if (out !== null) {
+                has_error = true;
+                this.ping_message = out;
+                this.color = '#ff0000';
+                print_debug('ping error: ' + out);
+            }
+        }
+
+        if (!has_error) {
+            let usage = [];
+            if (this._process_stream) {
+                this.ping_message = '';
+                do {
+                    [out, size] = this._process_stream.read_line_utf8(null);
+                    if (out !== null) {
+                        usage.push(out);
+
+                        print_debug('ping result: ' + out);
+                        this.ping_message += out + '\n';
+                    }
+                } while (out !== null);
+
+                let min = 9999;
+                let avg = 9999;
+                let max = 9999;
+                try {
+                    let timing_stats = usage[usage.length - 1].split('=')[1].split('/');
+                    min = timing_stats[0];
+                    avg = timing_stats[1];
+                    max = timing_stats[2];
+                } catch (e) {
+                    print_debug('error: ' + e);
+                }
+
+                let loss = 100;
+                try {
+                    let xmit_stats = usage[usage.length - 2].split('%');
+                    let s = xmit_stats[0].split(' ');
+                    loss = s[s.length - 1];
+                } catch (e) {
+                    print_debug('error: ' + e);
+                }
+
+                print_debug('loss: ' + loss);
+                print_debug('min: ' + min);
+                print_debug('avg: ' + avg);
+                print_debug('max: ' + max);
+
+                if (loss == 100) {
+                    this.color = '#ff0000';
+                } else if (max > this.warning_treshold) {
+                    this.color = '#ffaa00';
+                } else {
+                    this.color = '#00ff00';
+                }
+            }
+        }
+
+        this._endProcess();
+    },
+    _endProcess: function () {
+        if (this._process_stream) {
+            this._process_stream.close(null);
+            this._process_stream = null;
+        }
+        if (this._process_error) {
+            this._process_error.close(null);
+            this._process_error = null;
+        }
+    },
+    _pad: function (number) {
+        if (this.useGiB) {
+            if (number < 1) {
+                // examples: 0.01, 0.10, 0.88
+                return number.toFixed(2);
+            }
+            // examples: 5.85, 16.0, 128
+            return number.toPrecision(3);
+        }
+
+        return number;
+    },
+    _apply: function () {
+        this.menu_items[0].text = this.ping_message;
+        // this.menu_items[1].text = '2';
+        this.tip_vals[0] = this.ping_message;
+    },
+    create_text_items: function () {
+        return [
+            new St.Label({
+                text: '',
+                style_class: Style.get('sm-status-value'),
+                y_align: Clutter.ActorAlign.CENTER}),
+            new St.Label({
+                text: '%',
+                style_class: Style.get('sm-perc-label'),
+                y_align: Clutter.ActorAlign.CENTER})
+        ];
+    },
+    create_menu_items: function () {
+        return [
+            new St.Label({
+                text: '',
+                style_class: Style.get('sm-value-left')}),
+            // new St.Label({
+            //     text: '',
+            //     style_class: Style.get('sm-label')}),
+            // new St.Label({
+            //     text: '',
+            //     style_class: Style.get('sm-label')}),
+            // new St.Label({
+            //     text: '',
+            //     style_class: Style.get('sm-value')}),
+            // new St.Label({
+            //     text: '',
+            //     style_class: Style.get('sm-label')})
+        ];
+    }
+});
+
+const Icon = new Lang.Class({
+    Name: 'PingMonitor.Icon',
+
+    _init: function () {
+        this.actor = new St.Icon({icon_name: 'utilities-ping-monitor-symbolic',
+            style_class: 'system-status-icon'});
+        this.actor.visible = Schema.get_boolean('icon-display');
+        Schema.connect(
+            'changed::icon-display',
+            Lang.bind(this,
+                function () {
+                    this.actor.visible = Schema.get_boolean('icon-display');
+                })
+        );
+    }
+});
+
+function read_from_file(path) {
+    for (let eltName in Main.__sm.elts) {
+        Main.__sm.elts[eltName].destroy();
+    }
+
+    let [ok, contents] = GLib.file_get_contents(path);
+    if (ok) {
+        let map = JSON.parse(contents);
+
+        try {
+            debugOutput = map['debug_output'];
+        } catch (e) {
+            debugOutput = false;
+        }
+
+        try {
+            for (let i = 0; i < map['ping_config'].length; i++) {
+                let tag =               map['ping_config'][i]['tag'];
+                let name =              map['ping_config'][i]['name'];
+                let address =           map['ping_config'][i]['address'];
+                let ping_count =        map['ping_config'][i]['ping_count'];
+                let ping_interval =     map['ping_config'][i]['ping_interval'];
+                let ping_deadline =     map['ping_config'][i]['ping_deadline'];
+                let refresh_interval =  map['ping_config'][i]['refresh_interval'];
+                let active =            map['ping_config'][i]['active'];
+                let visible =           map['ping_config'][i]['visible'];
+                let show_name =         map['ping_config'][i]['show_name'];
+                let show_address =      map['ping_config'][i]['show_address'];
+                let show_tooltip =      map['ping_config'][i]['show_tooltip'];
+                let warning_threshold = map['ping_config'][i]['warning_threshold'];
+
+                print_debug('tag:               ' + tag);
+                print_debug('name:              ' + name);
+                print_debug('address:           ' + address);
+                print_debug('ping_count:        ' + ping_count);
+                print_debug('ping_interval:     ' + ping_interval);
+                print_debug('ping_deadline:     ' + ping_deadline);
+                print_debug('refresh_interval:  ' + refresh_interval);
+                print_debug('active:            ' + active);
+                print_debug('visible:           ' + visible);
+                print_debug('show_name:         ' + show_name);
+                print_debug('show_address:      ' + show_address);
+                print_debug('show_tooltip:      ' + show_tooltip);
+                print_debug('warning_threshold: ' + warning_threshold);
+
+                // id, tag, name, address, ping_count, ping_interval,
+                // ping_deadline, refresh_interval, active, visible,
+                // show_name, show_tooltip, warning_threshold
+
+                Main.__sm.elts.push(new Ping(
+                    i,
+                    tag,
+                    name,
+                    address,
+                    ping_count,
+                    ping_interval,
+                    ping_deadline,
+                    refresh_interval,
+                    active,
+                    visible,
+                    show_name,
+                    show_address,
+                    show_tooltip,
+                    warning_threshold));
+            }
+        } catch (e) {
+            print_info('could not load config');
+            print_info('error: ' + e);
+        }
+
+    }
+}
+
+var init = function () {
+    print_info('applet init from ' + extension.path);
+
+    Convenience.initTranslations();
+    // Get locale, needed as an argument for toLocaleString() since GNOME Shell 3.24
+    // See: mozjs library bug https://bugzilla.mozilla.org/show_bug.cgi?id=999003
+    Locale = GLib.get_language_names()[0];
+    if (Locale.indexOf('_') !== -1) {
+        Locale = Locale.split('_')[0];
+    }
+
+    IconSize = Math.round(Panel.PANEL_ICON_SIZE * 4 / 5);
+};
+
+var enable = function () {
+    print_info('applet enabling');
+    Schema = Convenience.getSettings();
+
+    /*
+    try {
+        let arr1 = Schema.get_strv('ping-tags');
+        log('[Ping monitor] tag 0: ' + arr1[0]);
+        log('[Ping monitor] tag 1: ' + arr1[1]);
+        log('[Ping monitor] tag 2: ' + arr1[2]);
+    } catch (e) {
+        log('[Ping monitor] catched error: ' + e);
+    }
+
+    try {
+        let arr2 = Schema.get_strv('ping-ids');
+        log('[Ping monitor] id 0: ' + parseInt(arr2[0]));
+        log('[Ping monitor] id 1: ' + parseInt(arr2[1]));
+        log('[Ping monitor] id 2: ' + parseInt(arr2[2]));
+
+        let arr3 = Schema.get_strv('ping-show-text');
+        log('[Ping monitor] show text 0: ' + (arr3[0] === 'true'));
+        log('[Ping monitor] show text 1: ' + (arr3[1] === 'true'));
+        log('[Ping monitor] show text 2: ' + (arr3[2] === 'true'));
+    } catch (e) {
+        log('[Ping monitor] catched error: ' + e);
+    }
+    */
+
+    Style = new smStyleManager();
+
+    Background = color_from_string(Schema.get_string('background'));
+
+    if (!(smDepsGtop)) {
+        Main.__sm = {
+            smdialog: new smDialog()
+        }
+
+        let dialog_timeout = Mainloop.timeout_add_seconds(
+            1,
+            function () {
+                Main.__sm.smdialog.open();
+                Mainloop.source_remove(dialog_timeout);
+                return true;
+            });
+    } else {
+        let panel = Main.panel._rightBox;
+        StatusArea = Main.panel._statusArea;
+        if (typeof (StatusArea) === 'undefined') {
+            StatusArea = Main.panel.statusArea;
+        }
+        if (Schema.get_boolean('center-display')) {
+            panel = Main.panel._centerBox;
+        }
+
+        // Debug
+        Main.__sm = {
+            tray: new PanelMenu.Button(0.5),
+            icon: new Icon(),
+            elts: [],
+        };
+
+        // Items to Monitor
+        read_from_file(GLib.getenv('HOME') + '/.config/ping-monitor.conf');
+
+        // Main.__sm.elts.push(new Ping(0, 'google', 'Google', '8.8.8.8', true));
+        // Main.__sm.elts.push(new Ping(1, 'rubbish', 'Rubbish', '8.8.4.9', true));
+        // Main.__sm.elts.push(new Ping(2, 'apc', 'LPC', '192.168.0.141', true));
+
+        let tray = Main.__sm.tray;
+        let elts = Main.__sm.elts;
+
+        if (Schema.get_boolean('move-clock')) {
+            let dateMenu;
+            if (Compat.versionCompare(shell_Version, '3.5.90')) {
+                dateMenu = Main.panel.statusArea.dateMenu;
+                Main.panel._centerBox.remove_actor(dateMenu.container);
+                Main.panel._addToPanelBox('dateMenu', dateMenu, -1, Main.panel._rightBox);
+            } else {
+                dateMenu = Main.panel._dateMenu;
+                Main.panel._centerBox.remove_actor(dateMenu.actor);
+                Main.panel._rightBox.insert_child_at_index(dateMenu.actor, -1);
+            }
+            tray.clockMoved = true;
+        }
+
+        Schema.connect('changed::background', Lang.bind(
+            this, function (schema, key) {
+                Background = color_from_string(Schema.get_string(key));
+            }));
+        if (!Compat.versionCompare(shell_Version, '3.5.5')) {
+            StatusArea.systemMonitor = tray;
+            panel.insert_child_at_index(tray.actor, 1);
+            panel.child_set(tray.actor, {y_fill: true});
+        } else {
+            Main.panel._addToPanelBox('ping-monitor', tray, 1, panel);
+        }
+
+        // The spacing adds a distance between the graphs/text on the top bar
+        let spacing = Schema.get_boolean('compact-display') ? '1' : '4';
+        let box = new St.BoxLayout({style: 'spacing: ' + spacing + 'px;'});
+        tray.actor.add_actor(box);
+        box.add_actor(Main.__sm.icon.actor);
+        // Add items to panel box
+        for (let elt in elts) {
+            box.add_actor(elts[elt].actor);
+        }
+
+        // Build Menu Info Box Table
+        let menu_info = new PopupMenu.PopupBaseMenuItem({reactive: false});
+        let menu_info_box = new St.BoxLayout();
+        menu_info.actor.add(menu_info_box);
+        Main.__sm.tray.menu.addMenuItem(menu_info, 0);
+
+        build_menu_info();
+
+        tray.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+
+        tray.menu.connect(
+            'open-state-changed',
+            function (menu, isOpen) {
+                if (isOpen) {
+                    // Main.__sm.pie.actor.queue_repaint();
+
+                    menu_timeout = Mainloop.timeout_add_seconds(
+                        5,
+                        function () {
+                            // Main.__sm.pie.actor.queue_repaint();
+                            return true;
+                        });
+                } else {
+                    Mainloop.source_remove(menu_timeout);
+                }
+            }
+        );
+
+        let _appSys = Shell.AppSystem.get_default();
+        let _gsmPrefs = _appSys.lookup_app('gnome-shell-extension-prefs.desktop');
+        let item;
+
+        // Reload config.
+        // item = new PopupMenu.PopupMenuItem(_('Reload config'));
+        // item.connect('activate', function () {
+        //     read_from_file(GLib.getenv('HOME') + '/.config/ping-monitor.conf');
+        // });
+        // tray.menu.addMenuItem(item);
+
+        // Preferences.
+        // item = new PopupMenu.PopupMenuItem(_('Preferences...'));
+        // item.connect('activate', function () {
+        //     if (_gsmPrefs.get_state() === _gsmPrefs.SHELL_APP_STATE_RUNNING) {
+        //         _gsmPrefs.activate();
+        //     } else {
+        //         let info = _gsmPrefs.get_app_info();
+        //         let timestamp = global.display.get_current_time_roundtrip();
+        //         info.launch_uris([metadata.uuid], global.create_app_launch_context(timestamp, -1));
+        //     }
+        // });
+        // tray.menu.addMenuItem(item);
+
+        if (Compat.versionCompare(shell_Version, '3.5.5')) {
+            Main.panel.menuManager.addMenu(tray.menu);
+        } else {
+            Main.panel._menus.addMenu(tray.menu);
+        }
+    }
+
+    print_info('applet enabling done');
+};
+
+var disable = function () {
+    // restore clock
+    if (Main.__sm.tray.clockMoved) {
+        let dateMenu;
+        if (Compat.versionCompare(shell_Version, '3.5.90')) {
+            dateMenu = Main.panel.statusArea.dateMenu;
+            Main.panel._rightBox.remove_actor(dateMenu.container);
+            Main.panel._addToPanelBox('dateMenu', dateMenu, Main.sessionMode.panel.center.indexOf('dateMenu'), Main.panel._centerBox);
+        } else {
+            dateMenu = Main.panel._dateMenu;
+            Main.panel._rightBox.remove_actor(dateMenu.actor);
+            Main.panel._centerBox.insert_child_at_index(dateMenu.actor, 0);
+        }
+    }
+
+    if (Style) {
+        Style = null;
+    }
+
+    Schema.run_dispose();
+    for (let eltName in Main.__sm.elts) {
+        Main.__sm.elts[eltName].destroy();
+    }
+
+    if (!Compat.versionCompare(shell_Version, '3.5')) {
+        Main.__sm.tray.destroy();
+        StatusArea.systemMonitor = null;
+    } else {
+        Main.__sm.tray.actor.destroy();
+    }
+    Main.__sm = null;
+    print_info('applet disable');
+};
