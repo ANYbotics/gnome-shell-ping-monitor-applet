@@ -778,9 +778,11 @@ const Ping = new Lang.Class({
         this.tip_format();
         this.update();
     },
+
     refresh: function () {
         print_debug('Ping refresh()');
 
+/*
         // Run asynchronously, to avoid shell freeze
         try {
             let path = Me.dir.get_path();
@@ -824,7 +826,103 @@ const Ping = new Lang.Class({
         } catch (err) {
             // Deal with the error
         }
+*/
+
+        let path = Me.dir.get_path();
+        let success;
+        this.command = [
+            '/bin/bash',
+            path + '/ping.sh',
+            this.address,
+            '' + this.ping_count,
+            '' + this.ping_deadline,
+            '' + this.ping_interval
+        ];
+        [success, this.child_pid, this.std_in, this.std_out, this.std_err] =
+            GLib.spawn_async_with_pipes(
+                null,
+                this.command,
+                null,
+                GLib.SpawnFlags.SEARCH_PATH | GLib.SpawnFlags.DO_NOT_REAP_CHILD,
+                null);
+
+        if (!success) {
+            return;
+        }
+
+        this.IOchannelIN = GLib.IOChannel.unix_new(this.std_in);
+        this.IOchannelOUT = GLib.IOChannel.unix_new(this.std_out);
+        this.IOchannelERR = GLib.IOChannel.unix_new(this.std_err);
+
+        this.IOchannelIN.shutdown(false);
+
+        this.tagWatchChild = GLib.child_watch_add(GLib.PRIORITY_DEFAULT, this.child_pid,
+            Lang.bind(this, function(pid, status, data) {
+                GLib.source_remove(this.tagWatchChild);
+                GLib.spawn_close_pid(pid);
+                this.child_pid = undefined;
+            })
+        );
+        this.tagWatchOUT = GLib.io_add_watch(this.IOchannelOUT, GLib.PRIORITY_DEFAULT,
+            GLib.IOCondition.IN | GLib.IOCondition.HUP,
+            Lang.bind(this, this._loadPipeOUT)//,
+            // null
+        );
+        this.tagWatchERR = GLib.io_add_watch(this.IOchannelERR, GLib.PRIORITY_DEFAULT,
+            GLib.IOCondition.IN | GLib.IOCondition.HUP,
+            Lang.bind(this, this._loadPipeERR)//,
+            // null
+        );
+
     },
+
+    _loadPipeOUT: function(channel, condition, data) {
+        if (condition != GLib.IOCondition.HUP) {
+            let [size, out] = channel.read_to_end();
+
+            this.ping_message = out.toString();
+            print_debug('Ping info: ' + this.ping_message);
+
+            let loss = out.toString().match(/received, (\d*)/m);
+            let times = out.toString().match(/mdev = (\d.\d*)\/(\d.\d*)\/(\d.\d*)\/(\d.\d*)/m);
+
+            if (times != null && times.length == 5 &&
+                loss != null && loss.length == 2) {
+                print_debug('loss: ' + loss[1]);
+                print_debug('min: ' + times[1]);
+                print_debug('avg: ' + times[2]);
+                print_debug('max: ' + times[3]);
+                print_debug('mdev: ' + times[4]);
+
+                if (loss[1] != 0) {
+                    this.color = '#ff00d3';
+                } else if (times[3] > this.warning_treshold) {
+                    this.color = '#ffaa00';
+                } else {
+                    this.color = '#00ff00';
+                }
+            } else {
+                this.color = '#ff0000';
+            }
+        }
+        GLib.source_remove(this.tagWatchOUT);
+        channel.shutdown(true);
+    },
+
+    _loadPipeERR: function(channel, condition, data) {
+        if (condition != GLib.IOCondition.HUP) {
+            let [size, out] = channel.read_to_end();
+
+            this.ping_message = out.toString();
+            print_debug('Ping error: ' + this.ping_message);
+
+            this.color = '#ff0000';
+        }
+        GLib.source_remove(this.tagWatchERR);
+        channel.shutdown(false);
+    },
+
+/*
     _readPingResult: function () {
         print_debug('Ping _readPingResult()');
 
@@ -895,6 +993,8 @@ const Ping = new Lang.Class({
 
         this._endProcess();
     },
+*/
+
     _endProcess: function () {
         print_debug('Ping _endProcess()');
 
