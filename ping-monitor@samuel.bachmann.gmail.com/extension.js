@@ -93,15 +93,21 @@ function l_limit(t) {
 }
 
 function change_text() {
+    print_debug('change_text()');
+
     this.label.visible = this.show_name;
 }
 
 function change_style() {
+    print_debug('change_style()');
+
     this.text_box.visible = true;
     this.chart.actor.visible = this.visible;
 }
 
 function build_menu_info() {
+    print_debug('build_menu_info()');
+
     let elts = Main.__sm.elts;
     let tray_menu = Main.__sm.tray.menu;
 
@@ -149,6 +155,8 @@ function build_menu_info() {
 }
 
 function change_menu() {
+    print_debug('change_menu()');
+
     this.menu_visible = true;
     build_menu_info();
 }
@@ -173,6 +181,8 @@ const smStyleManager = new Lang.Class({
     _text_scaling: 1,
 
     _init: function () {
+        print_debug('smStyleManager _init()');
+
         this._compact = Schema.get_boolean('compact-display');
         if (this._compact) {
             this._extension = '-compact';
@@ -247,6 +257,8 @@ const smDialog = Lang.Class({
     Extends: ModalDialog.ModalDialog,
 
     _init: function () {
+        print_debug('smDialog _init()');
+
         this.parent({styleClass: 'prompt-dialog'});
         let mainContentBox = new St.BoxLayout({style_class: 'prompt-dialog-main-layout',
             vertical: false});
@@ -294,6 +306,8 @@ const StatusSquare = new Lang.Class({
     _color: '#ff0000',
 
     _init: function (height, parent) {
+        print_debug('StatusSquare _init()');
+
         this.actor = new St.DrawingArea({style_class: Style.get('sm-chart'), reactive: false});
         this.parentC = parent;
         this.actor.set_width(this._width);
@@ -305,6 +319,8 @@ const StatusSquare = new Lang.Class({
         // }
     },
     update: function (color) {
+        print_debug('StatusSquare update()');
+
         this._color = color;
         let data_a = this.parentC.vals;
         // if (data_a.length !== this.parentC.colors.length) {
@@ -324,6 +340,8 @@ const StatusSquare = new Lang.Class({
         this.actor.queue_repaint();
     },
     _draw: function () {
+        print_debug('StatusSquare _draw()');
+
         if (!this.actor.visible) {
             return;
         }
@@ -337,6 +355,8 @@ const StatusSquare = new Lang.Class({
         }
     },
     resize: function (schema, key) {
+        print_debug('StatusSquare resize()');
+
         // let old_width = this._width;
         // this._width = Schema.get_int(key);
         // if (old_width === this._width) {
@@ -356,6 +376,8 @@ const TipItem = new Lang.Class({
     Extends: PopupMenu.PopupBaseMenuItem,
 
     _init: function () {
+        print_debug('TipItem _init()');
+
         PopupMenu.PopupBaseMenuItem.prototype._init.call(this);
         this.actor.remove_style_class_name('popup-menu-item');
         this.actor.add_style_class_name('sm-tooltip-item');
@@ -371,6 +393,8 @@ const TipMenu = new Lang.Class({
     Extends: PopupMenu.PopupMenuBase,
 
     _init: function (sourceActor) {
+        print_debug('TipMenu _init()');
+
         // PopupMenu.PopupMenuBase.prototype._init.call(this, sourceActor, 'sm-tooltip-box');
         this.parent(sourceActor, 'sm-tooltip-box');
         this.actor = new Shell.GenericContainer();
@@ -382,18 +406,26 @@ const TipMenu = new Lang.Class({
         this.actor.add_actor(this.box);
     },
     _boxGetPreferredWidth: function (actor, forHeight, alloc) {
+        print_debug('TipMenu _boxGetPreferredWidth()');
+
         // let columnWidths = this.getColumnWidths();
         // this.setColumnWidths(columnWidths);
 
         [alloc.min_size, alloc.natural_size] = this.box.get_preferred_width(forHeight);
     },
     _boxGetPreferredHeight: function (actor, forWidth, alloc) {
+        print_debug('TipMenu _boxGetPreferredHeight()');
+
         [alloc.min_size, alloc.natural_size] = this.box.get_preferred_height(forWidth);
     },
     _boxAllocate: function (actor, box, flags) {
+        print_debug('TipMenu _boxAllocate()');
+
         this.box.allocate(box, flags);
     },
     _shift: function () {
+        print_debug('TipMenu _shift()');
+
         // Probably old but works
         let node = this.sourceActor.get_theme_node();
         let contentbox = node.get_content_box(this.sourceActor.get_allocation_box());
@@ -417,6 +449,8 @@ const TipMenu = new Lang.Class({
         this.actor.set_position(tipx, tipy);
     },
     open: function (animate) {
+        print_debug('TipMenu open()');
+
         if (this.isOpen) {
             return;
         }
@@ -428,6 +462,8 @@ const TipMenu = new Lang.Class({
         this.emit('open-state-changed', true);
     },
     close: function (animate) {
+        print_debug('TipMenu close()');
+
         this.isOpen = false;
         this.actor.hide();
         this.emit('open-state-changed', false);
@@ -440,6 +476,8 @@ const TipBox = new Lang.Class({
     show_tooltip: true, // show mouseover tooltip
 
     _init: function () {
+        print_debug('TipBox _init()');
+
         this.actor = new St.BoxLayout({reactive: true}); // this is visualized
         this.actor._delegate = this;
         this.set_tip(new TipMenu(this.actor));
@@ -448,6 +486,8 @@ const TipBox = new Lang.Class({
         this.actor.connect('leave-event', Lang.bind(this, this.on_leave));
     },
     set_tip: function (tipmenu) {
+        print_debug('TipBox set_tip()');
+
         if (this.tipmenu) {
             this.tipmenu.destroy();
         }
@@ -458,6 +498,8 @@ const TipBox = new Lang.Class({
         }
     },
     show_tip: function () {
+        print_debug('TipBox show_tip()');
+
         if (!this.tipmenu) {
             return;
         }
@@ -468,6 +510,8 @@ const TipBox = new Lang.Class({
         }
     },
     hide_tip: function () {
+        print_debug('TipBox hide_tip()');
+
         if (!this.tipmenu) {
             return;
         }
@@ -482,6 +526,8 @@ const TipBox = new Lang.Class({
         }
     },
     on_enter: function () {
+        print_debug('TipBox on_enter()');
+
         let show_tooltip = this.show_tooltip;
 
         if (!show_tooltip) {
@@ -499,6 +545,8 @@ const TipBox = new Lang.Class({
         }
     },
     on_leave: function () {
+        print_debug('TipBox on_leave()');
+
         if (this.in_to) {
             Mainloop.source_remove(this.in_to);
             this.in_to = 0;
@@ -510,6 +558,8 @@ const TipBox = new Lang.Class({
         }
     },
     destroy: function () {
+        print_debug('TipBox destroy()');
+
         if (this.in_to) {
             Mainloop.source_remove(this.in_to);
             this.in_to = 0;
@@ -541,6 +591,8 @@ const ElementBase = new Lang.Class({
 
 
     _init: function () {
+        print_debug('ElementBase _init()');
+
         this.parent(arguments);
         this.vals = [];
         this.tip_labels = [];
@@ -554,7 +606,7 @@ const ElementBase = new Lang.Class({
                     this.chart.actor.queue_repaint();
                 }));
 
-        this.actor.visible = true;//Schema.get_boolean(this.elt + '-display');
+        this.actor.visible = this.visible;//Schema.get_boolean(this.elt + '-display');
         // Schema.connect(
         //     'changed::' + this.elt + '-display',
         //     Lang.bind(this,
@@ -562,7 +614,7 @@ const ElementBase = new Lang.Class({
         //             this.actor.visible = Schema.get_boolean(key);
         //         }));
 
-        this.interval = 3000; // milliseconds
+        this.interval = this.refresh_interval; // milliseconds
         this.timeout = Mainloop.timeout_add(
             this.interval,
             Lang.bind(this, this.update)
@@ -620,6 +672,8 @@ const ElementBase = new Lang.Class({
         this.chart.actor.queue_repaint();
     },
     tip_format: function () {
+        print_debug('ElementBase tip_format()');
+
         for (let i = 0; i < this.color_name.length; i++) {
             let tipline = new TipItem();
             this.tipmenu.addMenuItem(tipline);
@@ -633,6 +687,8 @@ const ElementBase = new Lang.Class({
         }
     },
     update: function () {
+        print_debug('ElementBase update()');
+
         if (!this.menu_visible && !this.actor.visible) {
             return false;
         }
@@ -646,9 +702,13 @@ const ElementBase = new Lang.Class({
         return true;
     },
     reset_style: function () {
+        print_debug('ElementBase reset_style()');
+
         this.text_items[0].set_style('color: rgba(255, 255, 255, 1)');
     },
     threshold: function () {
+        print_debug('ElementBase threshold()');
+
         if (Schema.get_int('thermal-threshold')) {
             if (this.temp_over_threshold) {
                 this.text_items[0].set_style('color: rgba(255, 0, 0, 1)');
@@ -658,6 +718,8 @@ const ElementBase = new Lang.Class({
         }
     },
     destroy: function () {
+        print_debug('ElementBase destroy()');
+
         TipBox.prototype.destroy.call(this);
         if (this.timeout) {
             Mainloop.source_remove(this.timeout);
@@ -692,6 +754,8 @@ const Ping = new Lang.Class({
     _init: function (id, tag, name, address, ping_count, ping_interval,
                      ping_deadline, refresh_interval, active, visible,
                      show_name, show_address, show_tooltip, warning_threshold) {
+        print_debug('Ping _init()');
+
         this.id = id;
         this.tag = tag;
         if (show_address) {
@@ -715,6 +779,8 @@ const Ping = new Lang.Class({
         this.update();
     },
     refresh: function () {
+        print_debug('Ping refresh()');
+
         // Run asynchronously, to avoid shell freeze
         try {
             let path = Me.dir.get_path();
@@ -760,6 +826,8 @@ const Ping = new Lang.Class({
         }
     },
     _readPingResult: function () {
+        print_debug('Ping _readPingResult()');
+
         print_debug('------------------------------------------------------------------------------');
         print_debug('name: ' + this.name);
         let out, size;
@@ -828,6 +896,8 @@ const Ping = new Lang.Class({
         this._endProcess();
     },
     _endProcess: function () {
+        print_debug('Ping _endProcess()');
+
         if (this._process_stream) {
             this._process_stream.close(null);
             this._process_stream = null;
@@ -837,24 +907,16 @@ const Ping = new Lang.Class({
             this._process_error = null;
         }
     },
-    _pad: function (number) {
-        if (this.useGiB) {
-            if (number < 1) {
-                // examples: 0.01, 0.10, 0.88
-                return number.toFixed(2);
-            }
-            // examples: 5.85, 16.0, 128
-            return number.toPrecision(3);
-        }
-
-        return number;
-    },
     _apply: function () {
+        print_debug('Ping _apply()');
+
         this.menu_items[0].text = this.ping_message;
         // this.menu_items[1].text = '2';
         this.tip_vals[0] = this.ping_message;
     },
     create_text_items: function () {
+        print_debug('Ping create_text_items()');
+
         return [
             new St.Label({
                 text: '',
@@ -867,6 +929,8 @@ const Ping = new Lang.Class({
         ];
     },
     create_menu_items: function () {
+        print_debug('Ping create_menu_items()');
+
         return [
             new St.Label({
                 text: '',
@@ -891,6 +955,8 @@ const Icon = new Lang.Class({
     Name: 'PingMonitor.Icon',
 
     _init: function () {
+        print_debug('Icon _init()');
+
         this.actor = new St.Icon({icon_name: 'utilities-ping-monitor-symbolic',
             style_class: 'system-status-icon'});
         this.actor.visible = Schema.get_boolean('icon-display');
@@ -905,9 +971,11 @@ const Icon = new Lang.Class({
 });
 
 function read_from_file(path) {
-    for (let eltName in Main.__sm.elts) {
-        Main.__sm.elts[eltName].destroy();
-    }
+    print_debug('read_from_file()');
+
+    //for (let eltName in Main.__sm.elts) {
+    //    Main.__sm.elts[eltName].destroy();
+    //}
 
     let [ok, contents] = GLib.file_get_contents(path);
     if (ok) {
@@ -1162,6 +1230,8 @@ var enable = function () {
 };
 
 var disable = function () {
+    print_info('disable applet');
+
     // restore clock
     if (Main.__sm.tray.clockMoved) {
         let dateMenu;
@@ -1192,5 +1262,5 @@ var disable = function () {
         Main.__sm.tray.actor.destroy();
     }
     Main.__sm = null;
-    print_info('applet disable');
+    print_info('applet disabled');
 };
