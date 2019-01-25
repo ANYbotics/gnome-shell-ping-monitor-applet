@@ -2,6 +2,8 @@
 
 This is still in development and just an alpha version.
 
+![screenshot](images/ping-monitor.png)
+
 ### Installation
 
 #### Prerequisites
