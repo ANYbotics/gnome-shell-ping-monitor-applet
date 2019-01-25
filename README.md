@@ -132,7 +132,7 @@ Once uploaded, [create a Github release](https://github.com/anybotics/gnome-shel
 
 [samuelba](https://github.com/samuelba)
 
-I took the [gnome-shell-system-monitor-applet](https://github.com/anybotics/gnome-shell-system-monitor-applet) and wrote my ping applet on top of it.
+I took the [gnome-shell-system-monitor-applet](https://github.com/paradoxxxzero/gnome-shell-system-monitor-applet) and wrote my ping applet on top of it.
 
 ### License
 
