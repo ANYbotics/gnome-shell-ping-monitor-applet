@@ -1,7 +1,7 @@
 /* -*- mode: js2; js2-basic-offset: 4; indent-tabs-mode: nil -*- */
 
-// ping-monitor: Gnome shell extension displaying system informations in gnome shell status bar, such as memory usage, cpu usage, network rates…
-// Copyright (C) 2011 Florian Mounier aka paradoxxxzero
+// ping-monitor: Gnome shell extension displaying ping informations in gnome shell status bar.
+// Copyright (C) 2019 Samuel Bachmann, samuel.bachmann@gmail.com
 
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-// Author: Florian Mounier aka paradoxxxzero
+// Author: Samuel Bachmann aka samuelba
 
 /* Ugly. This is here so that we don't crash old libnm-glib based shells unnecessarily
  * by loading the new libnm.so. Should go away eventually */
