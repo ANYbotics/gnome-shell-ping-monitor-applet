@@ -1059,7 +1059,7 @@ const Icon = new Lang.Class({
     _init: function () {
         print_debug('Icon _init()');
 
-        this.actor = new St.Icon({icon_name: 'utilities-ping-monitor-symbolic',
+        this.actor = new St.Icon({icon_name: 'system-run-symbolic',
             style_class: 'system-status-icon'});
         this.actor.visible = Schema.get_boolean('icon-display');
         Schema.connect(
@@ -1079,72 +1079,79 @@ function read_from_file(path) {
     //    Main.__sm.elts[eltName].destroy();
     //}
 
-    let [ok, contents] = GLib.file_get_contents(path);
-    if (ok) {
-        let map = JSON.parse(contents);
+    try {
+        let [ok, contents] = GLib.file_get_contents(path);
+        if (ok) {
+            let map = JSON.parse(contents);
 
-        try {
-            debugOutput = map['debug_output'];
-        } catch (e) {
-            debugOutput = false;
-        }
-
-        try {
-            for (let i = 0; i < map['ping_config'].length; i++) {
-                let tag =               map['ping_config'][i]['tag'];
-                let name =              map['ping_config'][i]['name'];
-                let address =           map['ping_config'][i]['address'];
-                let ping_count =        map['ping_config'][i]['ping_count'];
-                let ping_interval =     map['ping_config'][i]['ping_interval'];
-                let ping_deadline =     map['ping_config'][i]['ping_deadline'];
-                let refresh_interval =  map['ping_config'][i]['refresh_interval'];
-                let active =            map['ping_config'][i]['active'];
-                let visible =           map['ping_config'][i]['visible'];
-                let show_name =         map['ping_config'][i]['show_name'];
-                let show_address =      map['ping_config'][i]['show_address'];
-                let show_tooltip =      map['ping_config'][i]['show_tooltip'];
-                let warning_threshold = map['ping_config'][i]['warning_threshold'];
-
-                print_debug('tag:               ' + tag);
-                print_debug('name:              ' + name);
-                print_debug('address:           ' + address);
-                print_debug('ping_count:        ' + ping_count);
-                print_debug('ping_interval:     ' + ping_interval);
-                print_debug('ping_deadline:     ' + ping_deadline);
-                print_debug('refresh_interval:  ' + refresh_interval);
-                print_debug('active:            ' + active);
-                print_debug('visible:           ' + visible);
-                print_debug('show_name:         ' + show_name);
-                print_debug('show_address:      ' + show_address);
-                print_debug('show_tooltip:      ' + show_tooltip);
-                print_debug('warning_threshold: ' + warning_threshold);
-
-                // id, tag, name, address, ping_count, ping_interval,
-                // ping_deadline, refresh_interval, active, visible,
-                // show_name, show_tooltip, warning_threshold
-
-                Main.__sm.elts.push(new Ping(
-                    i,
-                    tag,
-                    name,
-                    address,
-                    ping_count,
-                    ping_interval,
-                    ping_deadline,
-                    refresh_interval,
-                    active,
-                    visible,
-                    show_name,
-                    show_address,
-                    show_tooltip,
-                    warning_threshold));
+            try {
+                debugOutput = map['debug_output'];
+            } catch (e) {
+                debugOutput = false;
             }
-        } catch (e) {
-            print_info('could not load config');
-            print_info('error: ' + e);
-        }
 
+            try {
+                for (let i = 0; i < map['ping_config'].length; i++) {
+                    let tag =               map['ping_config'][i]['tag'];
+                    let name =              map['ping_config'][i]['name'];
+                    let address =           map['ping_config'][i]['address'];
+                    let ping_count =        map['ping_config'][i]['ping_count'];
+                    let ping_interval =     map['ping_config'][i]['ping_interval'];
+                    let ping_deadline =     map['ping_config'][i]['ping_deadline'];
+                    let refresh_interval =  map['ping_config'][i]['refresh_interval'];
+                    let active =            map['ping_config'][i]['active'];
+                    let visible =           map['ping_config'][i]['visible'];
+                    let show_name =         map['ping_config'][i]['show_name'];
+                    let show_address =      map['ping_config'][i]['show_address'];
+                    let show_tooltip =      map['ping_config'][i]['show_tooltip'];
+                    let warning_threshold = map['ping_config'][i]['warning_threshold'];
+
+                    print_debug('tag:               ' + tag);
+                    print_debug('name:              ' + name);
+                    print_debug('address:           ' + address);
+                    print_debug('ping_count:        ' + ping_count);
+                    print_debug('ping_interval:     ' + ping_interval);
+                    print_debug('ping_deadline:     ' + ping_deadline);
+                    print_debug('refresh_interval:  ' + refresh_interval);
+                    print_debug('active:            ' + active);
+                    print_debug('visible:           ' + visible);
+                    print_debug('show_name:         ' + show_name);
+                    print_debug('show_address:      ' + show_address);
+                    print_debug('show_tooltip:      ' + show_tooltip);
+                    print_debug('warning_threshold: ' + warning_threshold);
+
+                    // id, tag, name, address, ping_count, ping_interval,
+                    // ping_deadline, refresh_interval, active, visible,
+                    // show_name, show_tooltip, warning_threshold
+
+                    Main.__sm.elts.push(new Ping(
+                        i,
+                        tag,
+                        name,
+                        address,
+                        ping_count,
+                        ping_interval,
+                        ping_deadline,
+                        refresh_interval,
+                        active,
+                        visible,
+                        show_name,
+                        show_address,
+                        show_tooltip,
+                        warning_threshold));
+                }
+            } catch (e) {
+                print_info('could not load config');
+                print_info('error: ' + e);
+                return false;
+            }
+        }
+    } catch (e) {
+        print_info('Error: ' + e);
+        return false;
     }
+
+    return true;
 }
 
 function build_ping_applet() {
@@ -1209,7 +1216,8 @@ function build_ping_applet() {
         };
 
         // Items to Monitor
-        read_from_file(GLib.getenv('HOME') + '/.config/ping-monitor.conf');
+        let isFileOk = read_from_file(GLib.getenv('HOME') + '/.config/ping-monitor.conf');
+        Schema.set_boolean('icon-display', !isFileOk);
 
         // Main.__sm.elts.push(new Ping(0, 'google', 'Google', '8.8.8.8', true));
         // Main.__sm.elts.push(new Ping(1, 'rubbish', 'Rubbish', '8.8.4.9', true));
