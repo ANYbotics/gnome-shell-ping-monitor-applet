@@ -895,14 +895,14 @@ const Ping = new Lang.Class({
                 print_debug('mdev: ' + times[4]);
 
                 if (loss[1] != 0) {
-                    this.color = '#ff00d3';
+                    this.color = Schema.get_string('ping-loss-color');
                 } else if (times[3] > this.warning_treshold) {
-                    this.color = '#ffaa00';
+                    this.color = Schema.get_string('ping-warning-color');
                 } else {
-                    this.color = '#00ff00';
+                    this.color = Schema.get_string('ping-good-color');
                 }
             } else {
-                this.color = '#ff0000';
+                this.color = Schema.get_string('ping-bad-color');
             }
         }
         GLib.source_remove(this.tagWatchOUT);
@@ -916,7 +916,7 @@ const Ping = new Lang.Class({
             this.ping_message = out.toString();
             print_debug('Ping error: ' + this.ping_message);
 
-            this.color = '#ff0000';
+            this.color = Schema.get_string('ping-bad-color');
         }
         GLib.source_remove(this.tagWatchERR);
         channel.shutdown(false);
@@ -1145,22 +1145,7 @@ function read_from_file(path) {
     }
 }
 
-var init = function () {
-    print_info('applet init from ' + extension.path);
-
-    Convenience.initTranslations();
-    // Get locale, needed as an argument for toLocaleString() since GNOME Shell 3.24
-    // See: mozjs library bug https://bugzilla.mozilla.org/show_bug.cgi?id=999003
-    Locale = GLib.get_language_names()[0];
-    if (Locale.indexOf('_') !== -1) {
-        Locale = Locale.split('_')[0];
-    }
-
-    IconSize = Math.round(Panel.PANEL_ICON_SIZE * 4 / 5);
-};
-
-var enable = function () {
-    print_info('applet enabling');
+function build_ping_applet() {
     Schema = Convenience.getSettings();
 
     /*
@@ -1300,24 +1285,25 @@ var enable = function () {
         let item;
 
         // Reload config.
-        // item = new PopupMenu.PopupMenuItem(_('Reload config'));
-        // item.connect('activate', function () {
-        //     read_from_file(GLib.getenv('HOME') + '/.config/ping-monitor.conf');
-        // });
-        // tray.menu.addMenuItem(item);
+        item = new PopupMenu.PopupMenuItem(_('Reload config'));
+        item.connect('activate', function () {
+            destroy_ping_applet();
+            build_ping_applet();
+        });
+        tray.menu.addMenuItem(item);
 
         // Preferences.
-        // item = new PopupMenu.PopupMenuItem(_('Preferences...'));
-        // item.connect('activate', function () {
-        //     if (_gsmPrefs.get_state() === _gsmPrefs.SHELL_APP_STATE_RUNNING) {
-        //         _gsmPrefs.activate();
-        //     } else {
-        //         let info = _gsmPrefs.get_app_info();
-        //         let timestamp = global.display.get_current_time_roundtrip();
-        //         info.launch_uris([metadata.uuid], global.create_app_launch_context(timestamp, -1));
-        //     }
-        // });
-        // tray.menu.addMenuItem(item);
+        item = new PopupMenu.PopupMenuItem(_('Preferences...'));
+        item.connect('activate', function () {
+            if (_gsmPrefs.get_state() === _gsmPrefs.SHELL_APP_STATE_RUNNING) {
+                _gsmPrefs.activate();
+            } else {
+                let info = _gsmPrefs.get_app_info();
+                let timestamp = global.display.get_current_time_roundtrip();
+                info.launch_uris([metadata.uuid], global.create_app_launch_context(timestamp, -1));
+            }
+        });
+        tray.menu.addMenuItem(item);
 
         if (Compat.versionCompare(shell_Version, '3.5.5')) {
             Main.panel.menuManager.addMenu(tray.menu);
@@ -1325,13 +1311,9 @@ var enable = function () {
             Main.panel._menus.addMenu(tray.menu);
         }
     }
-
-    print_info('applet enabling done');
 };
 
-var disable = function () {
-    print_info('disable applet');
-
+function destroy_ping_applet() {
     // restore clock
     if (Main.__sm.tray.clockMoved) {
         let dateMenu;
@@ -1362,5 +1344,34 @@ var disable = function () {
         Main.__sm.tray.actor.destroy();
     }
     Main.__sm = null;
+};
+
+var init = function () {
+    print_info('applet init from ' + extension.path);
+
+    Convenience.initTranslations();
+    // Get locale, needed as an argument for toLocaleString() since GNOME Shell 3.24
+    // See: mozjs library bug https://bugzilla.mozilla.org/show_bug.cgi?id=999003
+    Locale = GLib.get_language_names()[0];
+    if (Locale.indexOf('_') !== -1) {
+        Locale = Locale.split('_')[0];
+    }
+
+    IconSize = Math.round(Panel.PANEL_ICON_SIZE * 4 / 5);
+};
+
+var enable = function () {
+    print_info('applet enabling');
+
+    build_ping_applet();
+
+    print_info('applet enabling done');
+};
+
+var disable = function () {
+    print_info('disable applet');
+
+    destroy_ping_applet();
+
     print_info('applet disabled');
 };

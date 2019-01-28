@@ -35,6 +35,24 @@
       <summary>Ping show text.</summary>
       <description></description>
     </key>
+
+    <key name="ping-good-color" type="s">
+      <default>'#00ff00'</default>
+      <summary>Color of good ping status.</summary>
+    </key>
+    <key name="ping-warning-color" type="s">
+      <default>'#ffaa00'</default>
+      <summary>Color of warning ping status.</summary>
+    </key>
+    <key name="ping-bad-color" type="s">
+      <default>'#ff0000'</default>
+      <summary>Color of bad ping status.</summary>
+    </key>
+    <key name="ping-loss-color" type="s">
+      <default>'#ff00d3'</default>
+      <summary>Color of loss ping status.</summary>
+    </key>
+
     <key name="icon-display" type="b">
       <default>true</default>
       <summary>Display ping monitor icon</summary>

@@ -301,9 +301,9 @@ const App = new Lang.Class({
         this.items = [];
         this.settings = [];
 
-        setting_items.forEach(Lang.bind(this, function (setting) {
-            this.settings[setting] = new SettingFrame(_(setting.capitalize()), Schema);
-        }));
+        // setting_items.forEach(Lang.bind(this, function (setting) {
+        //     this.settings[setting] = new SettingFrame(_(setting.capitalize()), Schema);
+        // }));
 
         this.main_vbox = new Gtk.Box({orientation: Gtk.Orientation.VERTICAL,
             spacing: 10,
@@ -315,60 +315,127 @@ const App = new Lang.Class({
         });
         this.main_vbox.pack_start(this.hbox1, false, false, 0);
 
+        // Colors
+        // Good
+        let item = new ColorSelect(_('Good'));
+        item.set_value(Schema.get_string('ping-good-color'));
+        this.items.push(item);
+        this.hbox1.pack_start(item.actor, true, false, 0);
+        item.picker.connect('color-set', function (color) {
+            set_color(color, Schema, 'ping-good-color');
+        });
+        // Warning
+        item = new ColorSelect(_('Warning'));
+        item.set_value(Schema.get_string('ping-warning-color'));
+        this.items.push(item);
+        this.hbox1.pack_start(item.actor, true, false, 0);
+        item.picker.connect('color-set', function (color) {
+            set_color(color, Schema, 'ping-warning-color');
+        });
+        // Bad
+        item = new ColorSelect(_('Bad'));
+        item.set_value(Schema.get_string('ping-bad-color'));
+        this.items.push(item);
+        this.hbox1.pack_start(item.actor, true, false, 0);
+        item.picker.connect('color-set', function (color) {
+            set_color(color, Schema, 'ping-bad-color');
+        });
+        // Loss
+        item = new ColorSelect(_('Loss'));
+        item.set_value(Schema.get_string('ping-loss-color'));
+        this.items.push(item);
+        this.hbox1.pack_start(item.actor, true, false, 0);
+        item.picker.connect('color-set', function (color) {
+            set_color(color, Schema, 'ping-loss-color');
+        });
+
         keys.forEach(Lang.bind(this, function (key) {
-            if (key === 'icon-display') {
-                let item = new Gtk.CheckButton({label: _('Display Icon')});
-                // item.set_active(Schema.get_boolean(key))
-                this.items.push(item);
-                this.hbox1.add(item);
-                /* item.connect('toggled', function(check) {
-                    set_boolean(check, Schema, key);
-                });*/
-                Schema.bind(key, item, 'active', Gio.SettingsBindFlags.DEFAULT);
-            } else if (key === 'center-display') {
-                let item = new Gtk.CheckButton({label: _('Display in the Middle')});
-                // item.set_active(Schema.get_boolean(key))
-                this.items.push(item);
-                this.hbox1.add(item);
-                Schema.bind(key, item, 'active', Gio.SettingsBindFlags.DEFAULT);
-            } else if (key === 'compact-display') {
-                let item = new Gtk.CheckButton({label: _('Compact Display')});
-                this.items.push(item);
-                this.hbox1.add(item);
-                Schema.bind(key, item, 'active', Gio.SettingsBindFlags.DEFAULT);
-            } else if (key === 'show-tooltip') {
-                let item = new Gtk.CheckButton({label: _('Show tooltip')});
-                item.set_active(Schema.get_boolean(key));
-                this.items.push(item);
-                this.hbox1.add(item);
-                Schema.bind(key, item, 'active', Gio.SettingsBindFlags.DEFAULT);
-            } else if (key === 'move-clock') {
-                let item = new Gtk.CheckButton({label: _('Move the clock')});
-                // item.set_active(Schema.get_boolean(key))
-                this.items.push(item);
-                this.hbox1.add(item);
-                Schema.bind(key, item, 'active', Gio.SettingsBindFlags.DEFAULT);
-            } else if (key === 'background') {
-                let item = new ColorSelect(_('Background Color'));
-                item.set_value(Schema.get_string(key));
-                this.items.push(item);
-                this.hbox1.pack_start(item.actor, true, false, 0);
-                item.picker.connect('color-set', function (color) {
-                    set_color(color, Schema, key);
-                });
-            } else {
-                let sections = key.split('-');
-                if (setting_items.indexOf(sections[0]) >= 0) {
-                    this.settings[sections[0]].add(key);
-                }
-            }
+            // if (key === 'ping-good-color') {
+            //     let item = new ColorSelect(_('Good'));
+            //     item.set_value(Schema.get_string(key));
+            //     this.items.push(item);
+            //     this.hbox1.pack_start(item.actor, true, false, 0);
+            //     item.picker.connect('color-set', function (color) {
+            //         set_color(color, Schema, key);
+            //     });
+            // } else if (key === 'ping-warning-color') {
+            //     let item = new ColorSelect(_('Warning'));
+            //     item.set_value(Schema.get_string(key));
+            //     this.items.push(item);
+            //     this.hbox1.pack_start(item.actor, true, false, 0);
+            //     item.picker.connect('color-set', function (color) {
+            //         set_color(color, Schema, key);
+            //     });
+            // } else if (key === 'ping-bad-color') {
+            //     let item = new ColorSelect(_('Bad'));
+            //     item.set_value(Schema.get_string(key));
+            //     this.items.push(item);
+            //     this.hbox1.pack_start(item.actor, true, false, 0);
+            //     item.picker.connect('color-set', function (color) {
+            //         set_color(color, Schema, key);
+            //     });
+            // } else if (key === 'ping-loss-color') {
+            //     let item = new ColorSelect(_('Loss'));
+            //     item.set_value(Schema.get_string(key));
+            //     this.items.push(item);
+            //     this.hbox1.pack_start(item.actor, true, false, 0);
+            //     item.picker.connect('color-set', function (color) {
+            //         set_color(color, Schema, key);
+            //     });
+            // }
+            // else if (key === 'icon-display') {
+            //     let item = new Gtk.CheckButton({label: _('Display Icon')});
+            //     // item.set_active(Schema.get_boolean(key))
+            //     this.items.push(item);
+            //     this.hbox1.add(item);
+            //     /* item.connect('toggled', function(check) {
+            //         set_boolean(check, Schema, key);
+            //     });*/
+            //     Schema.bind(key, item, 'active', Gio.SettingsBindFlags.DEFAULT);
+            // } else if (key === 'center-display') {
+            //     let item = new Gtk.CheckButton({label: _('Display in the Middle')});
+            //     // item.set_active(Schema.get_boolean(key))
+            //     this.items.push(item);
+            //     this.hbox1.add(item);
+            //     Schema.bind(key, item, 'active', Gio.SettingsBindFlags.DEFAULT);
+            // } else if (key === 'compact-display') {
+            //     let item = new Gtk.CheckButton({label: _('Compact Display')});
+            //     this.items.push(item);
+            //     this.hbox1.add(item);
+            //     Schema.bind(key, item, 'active', Gio.SettingsBindFlags.DEFAULT);
+            // } else if (key === 'show-tooltip') {
+            //     let item = new Gtk.CheckButton({label: _('Show tooltip')});
+            //     item.set_active(Schema.get_boolean(key));
+            //     this.items.push(item);
+            //     this.hbox1.add(item);
+            //     Schema.bind(key, item, 'active', Gio.SettingsBindFlags.DEFAULT);
+            // } else if (key === 'move-clock') {
+            //     let item = new Gtk.CheckButton({label: _('Move the clock')});
+            //     // item.set_active(Schema.get_boolean(key))
+            //     this.items.push(item);
+            //     this.hbox1.add(item);
+            //     Schema.bind(key, item, 'active', Gio.SettingsBindFlags.DEFAULT);
+            // } else if (key === 'background') {
+            //     let item = new ColorSelect(_('Background Color'));
+            //     item.set_value(Schema.get_string(key));
+            //     this.items.push(item);
+            //     this.hbox1.pack_start(item.actor, true, false, 0);
+            //     item.picker.connect('color-set', function (color) {
+            //         set_color(color, Schema, key);
+            //     });
+            // } else {
+            //     let sections = key.split('-');
+            //     if (setting_items.indexOf(sections[0]) >= 0) {
+            //         this.settings[sections[0]].add(key);
+            //     }
+            // }
         }));
-        this.notebook = new Gtk.Notebook();
-        setting_items.forEach(Lang.bind(this, function (setting) {
-            this.notebook.append_page(this.settings[setting].frame, this.settings[setting].label);
-            this.main_vbox.pack_start(this.notebook, true, true, 0);
-            this.main_vbox.show_all();
-        }));
+        // this.notebook = new Gtk.Notebook();
+        // setting_items.forEach(Lang.bind(this, function (setting) {
+            // this.notebook.append_page(this.settings[setting].frame, this.settings[setting].label);
+            // this.main_vbox.pack_start(this.notebook, true, true, 0);
+            // this.main_vbox.show_all();
+        // }));
         this.main_vbox.show_all();
     }
 });
