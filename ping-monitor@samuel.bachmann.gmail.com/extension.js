@@ -894,8 +894,10 @@ const Ping = new Lang.Class({
                 print_debug('max: ' + times[3]);
                 print_debug('mdev: ' + times[4]);
 
-                if (loss[1] != 0) {
+                if (loss[1] != 0 && loss[1] != 100) {
                     this.color = Schema.get_string('ping-loss-color');
+                } else if (loss[1] == 100) {
+                    this.color = Schema.get_string('ping-bad-color');
                 } else if (times[3] > this.warning_treshold) {
                     this.color = Schema.get_string('ping-warning-color');
                 } else {
