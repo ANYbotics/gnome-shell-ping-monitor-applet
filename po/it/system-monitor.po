@@ -7,7 +7,7 @@
 #, fuzzy
 msgid ""
 msgstr ""
-"Project-Id-Version: gnome-shell-system-monitor-applet-translation-2.0\n"
+"Project-Id-Version: gnome-shell-ping-monitor-applet-translation-2.0\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2016-12-22 15:04+0100\n"
 "PO-Revision-Date: 2013-11-26 14:15+0100\n"

@@ -38,35 +38,6 @@ function color_to_hex(color) {
     return output;
 }
 
-function check_sensors(sensor_type) {
-    let inputs = [sensor_type + '1_input', sensor_type + '2_input', sensor_type + '3_input'];
-    let sensor_path = '/sys/class/hwmon/';
-    let sensor_list = [];
-    let string_list = [];
-    let test;
-    for (let j = 0; j < 6; j++) {
-        for (let k = 0; k < inputs.length; k++) {
-            test = sensor_path + 'hwmon' + j + '/' + inputs[k];
-            if (!GLib.file_test(test, 1 << 4)) {
-                test = sensor_path + 'hwmon' + j + '/device/' + inputs[k];
-                if (!GLib.file_test(test, 1 << 4)) {
-                    continue;
-                }
-            }
-            let sensor = test.substr(0, test.lastIndexOf('/'));
-            let result = GLib.file_get_contents(sensor + '/name');
-            let label;
-            if (result[0]) {
-                label = N_('' + result[1]).split('\n')[0];
-            }
-            string_list.push(label.capitalize() + ' - ' + inputs[k].split('_')[0].capitalize());
-            sensor_list.push(test);
-        }
-    }
-    return [sensor_list, string_list];
-}
-
-
 const ColorSelect = new Lang.Class({
     Name: 'PingMonitor.ColorSelect',
 
@@ -140,6 +111,7 @@ function set_string(combo, schema, name, _slist) {
     Schema.set_string(name, _slist[combo.get_active()]);
 }
 
+/*
 const SettingFrame = new Lang.Class({
     Name: 'PingMonitor.SettingFrame',
 
@@ -160,9 +132,9 @@ const SettingFrame = new Lang.Class({
         this.vbox.pack_start(this.hbox3, true, false, 0);
     },
 
-    /** Enforces child ordering of first 2 boxes by label */
+    // Enforces child ordering of first 2 boxes by label
     _reorder: function () {
-        /** @return {string} label of/inside component */
+        // @return {string} label of/inside component
         const labelOf = el => {
             if (el.get_children) {
                 return labelOf(el.get_children()[0]);
@@ -290,20 +262,15 @@ const SettingFrame = new Lang.Class({
         this._reorder();
     }
 });
+*/
 
 const App = new Lang.Class({
     Name: 'PingMonitor.App',
 
     _init: function () {
-        let setting_items = ['cpu', 'memory', 'swap', 'net', 'disk', 'gpu', 'thermal', 'fan', 'freq', 'battery'];
         let keys = Schema.list_keys();
 
         this.items = [];
-        this.settings = [];
-
-        // setting_items.forEach(Lang.bind(this, function (setting) {
-        //     this.settings[setting] = new SettingFrame(_(setting.capitalize()), Schema);
-        // }));
 
         this.main_vbox = new Gtk.Box({orientation: Gtk.Orientation.VERTICAL,
             spacing: 10,
@@ -314,6 +281,12 @@ const App = new Lang.Class({
             border_width: 10
         });
         this.main_vbox.pack_start(this.hbox1, false, false, 0);
+        this.hbox2 = new Gtk.Box({
+            orientation: Gtk.Orientation.HORIZONTAL,
+            spacing: 20,
+            border_width: 10
+        });
+        this.main_vbox.pack_start(this.hbox2, false, false, 0);
 
         // Colors
         // Good
@@ -349,93 +322,23 @@ const App = new Lang.Class({
             set_color(color, Schema, 'ping-loss-color');
         });
 
-        keys.forEach(Lang.bind(this, function (key) {
-            // if (key === 'ping-good-color') {
-            //     let item = new ColorSelect(_('Good'));
-            //     item.set_value(Schema.get_string(key));
-            //     this.items.push(item);
-            //     this.hbox1.pack_start(item.actor, true, false, 0);
-            //     item.picker.connect('color-set', function (color) {
-            //         set_color(color, Schema, key);
-            //     });
-            // } else if (key === 'ping-warning-color') {
-            //     let item = new ColorSelect(_('Warning'));
-            //     item.set_value(Schema.get_string(key));
-            //     this.items.push(item);
-            //     this.hbox1.pack_start(item.actor, true, false, 0);
-            //     item.picker.connect('color-set', function (color) {
-            //         set_color(color, Schema, key);
-            //     });
-            // } else if (key === 'ping-bad-color') {
-            //     let item = new ColorSelect(_('Bad'));
-            //     item.set_value(Schema.get_string(key));
-            //     this.items.push(item);
-            //     this.hbox1.pack_start(item.actor, true, false, 0);
-            //     item.picker.connect('color-set', function (color) {
-            //         set_color(color, Schema, key);
-            //     });
-            // } else if (key === 'ping-loss-color') {
-            //     let item = new ColorSelect(_('Loss'));
-            //     item.set_value(Schema.get_string(key));
-            //     this.items.push(item);
-            //     this.hbox1.pack_start(item.actor, true, false, 0);
-            //     item.picker.connect('color-set', function (color) {
-            //         set_color(color, Schema, key);
-            //     });
-            // }
-            // else if (key === 'icon-display') {
-            //     let item = new Gtk.CheckButton({label: _('Display Icon')});
-            //     // item.set_active(Schema.get_boolean(key))
-            //     this.items.push(item);
-            //     this.hbox1.add(item);
-            //     /* item.connect('toggled', function(check) {
-            //         set_boolean(check, Schema, key);
-            //     });*/
-            //     Schema.bind(key, item, 'active', Gio.SettingsBindFlags.DEFAULT);
-            // } else if (key === 'center-display') {
-            //     let item = new Gtk.CheckButton({label: _('Display in the Middle')});
-            //     // item.set_active(Schema.get_boolean(key))
-            //     this.items.push(item);
-            //     this.hbox1.add(item);
-            //     Schema.bind(key, item, 'active', Gio.SettingsBindFlags.DEFAULT);
-            // } else if (key === 'compact-display') {
-            //     let item = new Gtk.CheckButton({label: _('Compact Display')});
-            //     this.items.push(item);
-            //     this.hbox1.add(item);
-            //     Schema.bind(key, item, 'active', Gio.SettingsBindFlags.DEFAULT);
-            // } else if (key === 'show-tooltip') {
-            //     let item = new Gtk.CheckButton({label: _('Show tooltip')});
-            //     item.set_active(Schema.get_boolean(key));
-            //     this.items.push(item);
-            //     this.hbox1.add(item);
-            //     Schema.bind(key, item, 'active', Gio.SettingsBindFlags.DEFAULT);
-            // } else if (key === 'move-clock') {
-            //     let item = new Gtk.CheckButton({label: _('Move the clock')});
-            //     // item.set_active(Schema.get_boolean(key))
-            //     this.items.push(item);
-            //     this.hbox1.add(item);
-            //     Schema.bind(key, item, 'active', Gio.SettingsBindFlags.DEFAULT);
-            // } else if (key === 'background') {
-            //     let item = new ColorSelect(_('Background Color'));
-            //     item.set_value(Schema.get_string(key));
-            //     this.items.push(item);
-            //     this.hbox1.pack_start(item.actor, true, false, 0);
-            //     item.picker.connect('color-set', function (color) {
-            //         set_color(color, Schema, key);
-            //     });
-            // } else {
-            //     let sections = key.split('-');
-            //     if (setting_items.indexOf(sections[0]) >= 0) {
-            //         this.settings[sections[0]].add(key);
-            //     }
-            // }
+        // Config path
+        item = new Gtk.Label({label: 'Configuration path'});
+        this.hbox2.add(item);
+        // File chooser
+        item = new Gtk.FileChooserButton({title: _('Open configuration file')});
+        item.set_current_folder(GLib.getenv('HOME') + '/.config');
+        item.set_filename(Schema.get_string('ping-config-path'));
+        this.items.push(item);
+        this.hbox2.add(item);
+        item.connect('file-set',Lang.bind(this, function (button) {
+            let path = button.get_filename();
+            let oldPath = Schema.get_string('ping-config-path');
+            if (path !== oldPath) {
+                Schema.set_string('ping-config-path', path);
+            }
         }));
-        // this.notebook = new Gtk.Notebook();
-        // setting_items.forEach(Lang.bind(this, function (setting) {
-            // this.notebook.append_page(this.settings[setting].frame, this.settings[setting].label);
-            // this.main_vbox.pack_start(this.notebook, true, true, 0);
-            // this.main_vbox.show_all();
-        // }));
+
         this.main_vbox.show_all();
     }
 });

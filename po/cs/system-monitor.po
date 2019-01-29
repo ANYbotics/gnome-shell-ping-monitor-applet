@@ -5,7 +5,7 @@
 #: extension.js:751
 msgid ""
 msgstr ""
-"Project-Id-Version: gnome-shell-system-monitor-applet\n"
+"Project-Id-Version: gnome-shell-ping-monitor-applet\n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2016-12-22 15:04+0100\n"
 "PO-Revision-Date: 2012-09-15\n"

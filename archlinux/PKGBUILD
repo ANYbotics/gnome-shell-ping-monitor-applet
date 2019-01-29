@@ -1,18 +1,18 @@
-# Maintainer: Florian Mounier aka paradoxxxzero <paradoxxx.zero@gmail.com>
-pkgname=gnome-shell-system-monitor-applet-git
-pkgver=20120504
+# Maintainer: Samuel Bachmann aka samuelba <samuel.bachmann@gmail.com>
+pkgname=gnome-shell-ping-monitor-applet-git
+pkgver=20190129
 pkgrel=1
-pkgdesc="System monitor extension for Gnome-Shell (display mem swap cpu usage)"
+pkgdesc="Ping monitor extension for Gnome-Shell"
 arch=('any')
-url="http://github.com/paradoxxxzero/gnome-shell-system-monitor-applet"
+url="http://github.com/anybotics/gnome-shell-ping-monitor-applet"
 license=('GPL3')
 depends=('gnome-shell>=3.3.90' 'libgtop' 'networkmanager')
 makedepends=('git')
-provides=("system-monitor-applet")
+provides=("ping-monitor-applet")
 #install=gschemas.install
 
-_gitroot="git://github.com/paradoxxxzero/gnome-shell-system-monitor-applet.git"
-_gitname="gnome-shell-system-monitor-applet"
+_gitroot="git://github.com/anybotics/gnome-shell-ping-monitor-applet.git"
+_gitname="gnome-shell-ping-monitor-applet"
 
 build() {
     cd ${srcdir}/
@@ -28,8 +28,8 @@ build() {
 }
 
 package() {
-    cd "$srcdir/gnome-shell-system-monitor-applet"
+    cd "$srcdir/gnome-shell-ping-monitor-applet"
     mkdir -p "$pkgdir/usr/share/gnome-shell/extensions/"
-    cp -R "system-monitor@paradoxxx.zero.gmail.com" "$pkgdir/usr/share/gnome-shell/extensions"
+    cp -R "ping-monitor@samuel.bachmann.gmail.com" "$pkgdir/usr/share/gnome-shell/extensions"
 }
 

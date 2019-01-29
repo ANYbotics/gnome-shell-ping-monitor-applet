@@ -183,23 +183,6 @@ const smStyleManager = new Lang.Class({
     _init: function () {
         print_debug('smStyleManager _init()');
 
-        this._compact = Schema.get_boolean('compact-display');
-        if (this._compact) {
-            this._extension = '-compact';
-            this._iconsize = 3 / 5;
-            this._diskunits = _('MB');
-            this._netunits_kbytes = _('kB');
-            this._netunits_mbytes = _('MB');
-            this._netunits_kbits = 'kb';
-            this._netunits_mbits = 'Mb';
-            this._pie_width *= 4 / 5;
-            this._pie_height *= 4 / 5;
-            this._pie_fontsize = 12;
-            this._bar_width *= 3 / 5;
-            this._bar_height *= 3 / 5;
-            this._bar_fontsize = 12;
-        }
-
         let interfaceSettings = new Gio.Settings({
             schema: 'org.gnome.desktop.interface'
         });
@@ -1066,6 +1049,7 @@ const Icon = new Lang.Class({
             'changed::icon-display',
             Lang.bind(this,
                 function () {
+                    print_debug('changed icon-display');
                     this.actor.visible = Schema.get_boolean('icon-display');
                 })
         );
@@ -1073,7 +1057,7 @@ const Icon = new Lang.Class({
 });
 
 function read_from_file(path) {
-    print_debug('read_from_file()');
+    print_info('read_from_file()');
 
     //for (let eltName in Main.__sm.elts) {
     //    Main.__sm.elts[eltName].destroy();
@@ -1156,33 +1140,32 @@ function read_from_file(path) {
 
 function build_ping_applet() {
     Schema = Convenience.getSettings();
-
-    /*
-    try {
-        let arr1 = Schema.get_strv('ping-tags');
-        log('[Ping monitor] tag 0: ' + arr1[0]);
-        log('[Ping monitor] tag 1: ' + arr1[1]);
-        log('[Ping monitor] tag 2: ' + arr1[2]);
-    } catch (e) {
-        log('[Ping monitor] catched error: ' + e);
-    }
-
-    try {
-        let arr2 = Schema.get_strv('ping-ids');
-        log('[Ping monitor] id 0: ' + parseInt(arr2[0]));
-        log('[Ping monitor] id 1: ' + parseInt(arr2[1]));
-        log('[Ping monitor] id 2: ' + parseInt(arr2[2]));
-
-        let arr3 = Schema.get_strv('ping-show-text');
-        log('[Ping monitor] show text 0: ' + (arr3[0] === 'true'));
-        log('[Ping monitor] show text 1: ' + (arr3[1] === 'true'));
-        log('[Ping monitor] show text 2: ' + (arr3[2] === 'true'));
-    } catch (e) {
-        log('[Ping monitor] catched error: ' + e);
-    }
-    */
-
     Style = new smStyleManager();
+
+    // /*
+    // try {
+    //     let arr1 = Schema.get_strv('ping-tags');
+    //     log('[Ping monitor] tag 0: ' + arr1[0]);
+    //     log('[Ping monitor] tag 1: ' + arr1[1]);
+    //     log('[Ping monitor] tag 2: ' + arr1[2]);
+    // } catch (e) {
+    //     log('[Ping monitor] catched error: ' + e);
+    // }
+    //
+    // try {
+    //     let arr2 = Schema.get_strv('ping-ids');
+    //     log('[Ping monitor] id 0: ' + parseInt(arr2[0]));
+    //     log('[Ping monitor] id 1: ' + parseInt(arr2[1]));
+    //     log('[Ping monitor] id 2: ' + parseInt(arr2[2]));
+    //
+    //     let arr3 = Schema.get_strv('ping-show-text');
+    //     log('[Ping monitor] show text 0: ' + (arr3[0] === 'true'));
+    //     log('[Ping monitor] show text 1: ' + (arr3[1] === 'true'));
+    //     log('[Ping monitor] show text 2: ' + (arr3[2] === 'true'));
+    // } catch (e) {
+    //     log('[Ping monitor] catched error: ' + e);
+    // }
+    // */
 
     Background = color_from_string(Schema.get_string('background'));
 
@@ -1204,9 +1187,6 @@ function build_ping_applet() {
         if (typeof (StatusArea) === 'undefined') {
             StatusArea = Main.panel.statusArea;
         }
-        if (Schema.get_boolean('center-display')) {
-            panel = Main.panel._centerBox;
-        }
 
         // Debug
         Main.__sm = {
@@ -1216,7 +1196,13 @@ function build_ping_applet() {
         };
 
         // Items to Monitor
-        let isFileOk = read_from_file(GLib.getenv('HOME') + '/.config/ping-monitor.conf');
+        let isFileOk = false;
+        let path = Schema.get_string('ping-config-path');
+        if (path == '') {
+            path = GLib.getenv('HOME') + '/.config/ping-monitor.conf';
+            Schema.set_string('ping-config-path', path);
+        }
+        isFileOk = read_from_file(path);
         Schema.set_boolean('icon-display', !isFileOk);
 
         // Main.__sm.elts.push(new Ping(0, 'google', 'Google', '8.8.8.8', true));
@@ -1225,20 +1211,6 @@ function build_ping_applet() {
 
         let tray = Main.__sm.tray;
         let elts = Main.__sm.elts;
-
-        if (Schema.get_boolean('move-clock')) {
-            let dateMenu;
-            if (Compat.versionCompare(shell_Version, '3.5.90')) {
-                dateMenu = Main.panel.statusArea.dateMenu;
-                Main.panel._centerBox.remove_actor(dateMenu.container);
-                Main.panel._addToPanelBox('dateMenu', dateMenu, -1, Main.panel._rightBox);
-            } else {
-                dateMenu = Main.panel._dateMenu;
-                Main.panel._centerBox.remove_actor(dateMenu.actor);
-                Main.panel._rightBox.insert_child_at_index(dateMenu.actor, -1);
-            }
-            tray.clockMoved = true;
-        }
 
         Schema.connect('changed::background', Lang.bind(
             this, function (schema, key) {
@@ -1253,7 +1225,7 @@ function build_ping_applet() {
         }
 
         // The spacing adds a distance between the graphs/text on the top bar
-        let spacing = Schema.get_boolean('compact-display') ? '1' : '4';
+        let spacing = '4'; // TODO '1' ?
         let box = new St.BoxLayout({style: 'spacing: ' + spacing + 'px;'});
         tray.actor.add_actor(box);
         box.add_actor(Main.__sm.icon.actor);
@@ -1305,13 +1277,15 @@ function build_ping_applet() {
         // Preferences.
         item = new PopupMenu.PopupMenuItem(_('Preferences...'));
         item.connect('activate', function () {
-            if (_gsmPrefs.get_state() === _gsmPrefs.SHELL_APP_STATE_RUNNING) {
-                _gsmPrefs.activate();
-            } else {
-                let info = _gsmPrefs.get_app_info();
-                let timestamp = global.display.get_current_time_roundtrip();
-                info.launch_uris([metadata.uuid], global.create_app_launch_context(timestamp, -1));
-            }
+            Util.spawn(["gnome-shell-extension-prefs", "ping-monitor@samuel.bachmann.gmail.com"]);
+
+            // if (_gsmPrefs.get_state() === _gsmPrefs.SHELL_APP_STATE_RUNNING) {
+            //     _gsmPrefs.activate();
+            // } else {
+            //     let info = _gsmPrefs.get_app_info();
+            //     let timestamp = global.display.get_current_time_roundtrip();
+            //     info.launch_uris([metadata.uuid], global.create_app_launch_context(timestamp, -1));
+            // }
         });
         tray.menu.addMenuItem(item);
 
@@ -1320,29 +1294,22 @@ function build_ping_applet() {
         } else {
             Main.panel._menus.addMenu(tray.menu);
         }
+
+        Schema.connect('changed::ping-config-path', Lang.bind(
+            this, function () {
+                print_info("Config path changed.");
+                // destroy_ping_applet();
+                // build_ping_applet();
+            }));
     }
 };
 
 function destroy_ping_applet() {
-    // restore clock
-    if (Main.__sm.tray.clockMoved) {
-        let dateMenu;
-        if (Compat.versionCompare(shell_Version, '3.5.90')) {
-            dateMenu = Main.panel.statusArea.dateMenu;
-            Main.panel._rightBox.remove_actor(dateMenu.container);
-            Main.panel._addToPanelBox('dateMenu', dateMenu, Main.sessionMode.panel.center.indexOf('dateMenu'), Main.panel._centerBox);
-        } else {
-            dateMenu = Main.panel._dateMenu;
-            Main.panel._rightBox.remove_actor(dateMenu.actor);
-            Main.panel._centerBox.insert_child_at_index(dateMenu.actor, 0);
-        }
-    }
-
     if (Style) {
         Style = null;
     }
-
     Schema.run_dispose();
+
     for (let eltName in Main.__sm.elts) {
         Main.__sm.elts[eltName].destroy();
     }
@@ -1373,6 +1340,9 @@ var init = function () {
 var enable = function () {
     print_info('applet enabling');
 
+    // Schema = Convenience.getSettings();
+    // Style = new smStyleManager();
+
     build_ping_applet();
 
     print_info('applet enabling done');
@@ -1380,6 +1350,11 @@ var enable = function () {
 
 var disable = function () {
     print_info('disable applet');
+
+    // if (Style) {
+    //     Style = null;
+    // }
+    // Schema.run_dispose();
 
     destroy_ping_applet();
 
