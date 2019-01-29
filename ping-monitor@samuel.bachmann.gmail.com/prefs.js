@@ -19,7 +19,7 @@ const N_ = function (e) {
 let Schema;
 
 function init() {
-    convenience.initTranslations();
+    // convenience.initTranslations();
     Schema = convenience.getSettings();
 }
 

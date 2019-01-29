@@ -45,17 +45,15 @@ zip-file: _build
 	mv _build/$(UUID)$(VSTRING).zip ./
 	-rm -fR _build
 
-_build: update-translation
+_build:
 	-rm -fR ./_build
 	mkdir -p _build
 	cp $(BASE_MODULES) _build
-	mkdir -p _build/locale
-	cp -r $(UUID)/locale/* _build/locale/
 	mkdir -p _build/schemas
 	cp $(UUID)/schemas/*.xml _build/schemas/
 	cp $(UUID)/schemas/gschemas.compiled _build/schemas/
 	sed -i 's/"version": -1/"version": "$(VERSION)"/'  _build/metadata.json;
 
-update-translation: all
-	cd po; \
-	./compile.sh ../ping-monitor@samuel.bachmann.gmail.com/locale;
+#update-translation: all
+#	cd po; \
+#	./compile.sh ../ping-monitor@samuel.bachmann.gmail.com/locale;

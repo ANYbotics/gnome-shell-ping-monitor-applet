@@ -44,7 +44,7 @@ const Me = ExtensionUtils.getCurrentExtension();
 const Convenience = Me.imports.convenience;
 const Compat = Me.imports.compat;
 
-let Background, GTop, IconSize, Locale, Schema, StatusArea, Style, gc_timeout, menu_timeout;
+let Background, GTop, IconSize, Locale, Schema, StatusArea, Style, menu_timeout;
 
 try {
     GTop = imports.gi.GTop;
@@ -1329,10 +1329,10 @@ var init = function () {
     Convenience.initTranslations();
     // Get locale, needed as an argument for toLocaleString() since GNOME Shell 3.24
     // See: mozjs library bug https://bugzilla.mozilla.org/show_bug.cgi?id=999003
-    Locale = GLib.get_language_names()[0];
-    if (Locale.indexOf('_') !== -1) {
-        Locale = Locale.split('_')[0];
-    }
+    // Locale = GLib.get_language_names()[0];
+    // if (Locale.indexOf('_') !== -1) {
+    //     Locale = Locale.split('_')[0];
+    // }
 
     IconSize = Math.round(Panel.PANEL_ICON_SIZE * 4 / 5);
 };

@@ -47,12 +47,12 @@ function initTranslations(domain) {
     // has the locale files in a subfolder
     // otherwise assume that extension has been installed in the
     // same prefix as gnome-shell
-    let localeDir = extension.dir.get_child('locale');
-    if (localeDir.query_exists(null)) {
-        Gettext.bindtextdomain(domain, localeDir.get_path());
-    } else {
-        Gettext.bindtextdomain(domain, Config.LOCALEDIR);
-    }
+    // let localeDir = extension.dir.get_child('locale');
+    // if (localeDir.query_exists(null)) {
+    //     Gettext.bindtextdomain(domain, localeDir.get_path());
+    // } else {
+    //     Gettext.bindtextdomain(domain, Config.LOCALEDIR);
+    // }
 }
 
 /**
