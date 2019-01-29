@@ -2,7 +2,9 @@
 
 This is still in development and just an alpha version.
 
-![screenshot](images/ping-monitor.png)
+![Ping Monitor](images/ping-monitor.png)
+
+![Ping Monitor Preference](images/ping-monitor-preference.png)
 
 ### Installation
 
@@ -70,7 +72,7 @@ On openSUSE you need to install a devel package that provides the `gnome-shell-e
 
 ### Configuration
 
-At the moment you still need a manual config file. Create a file `~/.config/ping-monitor.conf` with e.g.:
+At the moment you need a manual config file. Create a file `~/.config/ping-monitor.conf` with e.g.:
 
 ```
 {
