@@ -28,6 +28,7 @@
     font-size: 0.65em;
     min-width: 40px;
     padding: 2px 5px 0 0;
+    margin-bottom: 10px;
     font-family: monospace;
 }
 
@@ -87,7 +88,7 @@
 }
 
 .sm-chart {
-    padding: 0 2px;
+    padding: 0 0px;
 }
 
 .sm-tooltip-box {

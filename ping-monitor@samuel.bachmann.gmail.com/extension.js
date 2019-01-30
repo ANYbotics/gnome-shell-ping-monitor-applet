@@ -287,6 +287,8 @@ const StatusSquare = new Lang.Class({
 
     _width: 10,
     _color: '#ff0000',
+    _activityState: 0,
+    _activityWidth: 4,
 
     _init: function (height, parent) {
         print_debug('StatusSquare _init()');
@@ -305,18 +307,7 @@ const StatusSquare = new Lang.Class({
         print_debug('StatusSquare update()');
 
         this._color = color;
-        let data_a = this.parentC.vals;
-        // if (data_a.length !== this.parentC.colors.length) {
-        //     return;
-        // }
-        let accdata = [];
-        for (let l = 0; l < data_a.length; l++) {
-            accdata[l] = (l === 0) ? data_a[0] : accdata[l - 1] + ((data_a[l] > 0) ? data_a[l] : 0);
-            this.data[l].push(accdata[l]);
-            if (this.data[l].length > this._width) {
-                this.data[l].shift();
-            }
-        }
+
         if (!this.actor.visible) {
             return;
         }
@@ -329,10 +320,39 @@ const StatusSquare = new Lang.Class({
             return;
         }
         let [width, height] = this.actor.get_surface_size();
+
+        // Draw ping status.
         let cr = this.actor.get_context();
         Clutter.cairo_set_source_color(cr, color_from_string(this._color));
         cr.rectangle(0, (height-this._width)/2, this._width, this._width);
         cr.fill();
+
+        // Draw activity state.
+        Clutter.cairo_set_source_color(cr, color_from_string('#000000'));
+        switch (this._activityState) {
+            case 0:
+                cr.rectangle(0, (height-this._width)/2,
+                    this._activityWidth, this._activityWidth);
+                this._activityState = 1;
+                break;
+            case 1:
+                cr.rectangle(this._width-this._activityWidth, (height-this._width)/2,
+                    this._activityWidth, this._activityWidth);
+                this._activityState = 2;
+                break;
+            case 2:
+                cr.rectangle(this._width-this._activityWidth, (height-this._width)/2 + this._width-this._activityWidth,
+                    this._activityWidth, this._activityWidth);
+                this._activityState = 3;
+                break;
+            case 3:
+                cr.rectangle(0, (height-this._width)/2 + this._width-this._activityWidth,
+                    this._activityWidth, this._activityWidth);
+                this._activityState = 0;
+                break;
+        }
+        cr.fill();
+
         if (Compat.versionCompare(shell_Version, '3.7.4')) {
             cr.$dispose();
         }
@@ -863,7 +883,15 @@ const Ping = new Lang.Class({
         if (condition != GLib.IOCondition.HUP) {
             let [size, out] = channel.read_to_end();
 
-            this.ping_message = out.toString();
+            let firstLine = out.toString().match(/[\w .:()]+\n/m);
+            print_debug('First line: ' + firstLine[0]);
+
+            let lastLines = out.toString().match(/---[\w\W]+/m);
+            lastLines[0] = lastLines[0].replace(/^\s+|\s+$/g, '');
+            print_debug('Last lines: ' + lastLines[0]);
+
+            // this.ping_message = out.toString();
+            this.ping_message = firstLine[0] + lastLines[0];
             print_debug('Ping info: ' + this.ping_message);
 
             let loss = out.toString().match(/received, (\d*)/m);
