@@ -769,7 +769,7 @@ const Ping = new Lang.Class({
     show_name: true, // show name in the system tray
     show_address: true, // show address in the system tray
     // show_tooltip: true, // show mouseover tooltip
-    warning_treshold: 20, // if ping ms higher -> orange
+    warning_threshold: 20, // if ping ms higher -> orange
     ping_message: '', // the last ping result
 
     color_name: ['used'],
@@ -929,7 +929,7 @@ const Ping = new Lang.Class({
                     this.color = Schema.get_string('ping-loss-color');
                 } else if (loss[1] == 100) {
                     this.color = Schema.get_string('ping-bad-color');
-                } else if (times[3] > this.warning_treshold) {
+                } else if (times[3] > this.warning_threshold) {
                     this.color = Schema.get_string('ping-warning-color');
                 } else {
                     this.color = Schema.get_string('ping-good-color');
