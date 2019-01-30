@@ -289,6 +289,7 @@ const StatusSquare = new Lang.Class({
     _color: '#ff0000',
     _activityState: 0,
     _activityWidth: 4,
+    _isPingUpdate: false,
 
     _init: function (height, parent) {
         print_debug('StatusSquare _init()');
@@ -303,10 +304,11 @@ const StatusSquare = new Lang.Class({
         //     this.data[i] = [];
         // }
     },
-    update: function (color) {
+    update: function (color, isPingUpdate) {
         print_debug('StatusSquare update()');
 
         this._color = color;
+        this._isPingUpdate = isPingUpdate;
 
         if (!this.actor.visible) {
             return;
@@ -333,23 +335,30 @@ const StatusSquare = new Lang.Class({
             case 0:
                 cr.rectangle(0, (height-this._width)/2,
                     this._activityWidth, this._activityWidth);
-                this._activityState = 1;
+                // this._activityState = 1;
                 break;
             case 1:
                 cr.rectangle(this._width-this._activityWidth, (height-this._width)/2,
                     this._activityWidth, this._activityWidth);
-                this._activityState = 2;
+                // this._activityState = 2;
                 break;
             case 2:
                 cr.rectangle(this._width-this._activityWidth, (height-this._width)/2 + this._width-this._activityWidth,
                     this._activityWidth, this._activityWidth);
-                this._activityState = 3;
+                // this._activityState = 3;
                 break;
             case 3:
                 cr.rectangle(0, (height-this._width)/2 + this._width-this._activityWidth,
                     this._activityWidth, this._activityWidth);
-                this._activityState = 0;
+                // this._activityState = 0;
                 break;
+        }
+        if (this._isPingUpdate) {
+            this._isPingUpdate = false;
+            this._activityState++;
+            if (this._activityState >= 4) {
+                this._activityState = 0;
+            }
         }
         cr.fill();
 
@@ -588,6 +597,7 @@ const ElementBase = new Lang.Class({
     menu_items: [],
     menu_visible: true,
     color: '#ff0000',
+    isRunning: false,
 
     refresh_interval: 5000, // milliseconds between ping
     visible: true, // show in the system tray
@@ -692,17 +702,27 @@ const ElementBase = new Lang.Class({
     update: function () {
         print_debug('ElementBase update()');
 
+        // Ensure it is not running twice.
+        if (this.isRunning) {
+            return true;
+        }
+        this.isRunning = true;
+
+        // Refresh ping.
         if (!this.menu_visible && !this.actor.visible) {
             return false;
         }
         this.refresh();
-        this._apply();
 
-        this.chart.update(this.color);
+        return true;
+    },
+    updateDrawing: function () {
+        this._apply();
+        this.chart.update(this.color, true);
         for (let i = 0; i < this.tip_vals.length; i++) {
             this.tip_labels[i].text = this.tip_vals[i].toString();
         }
-        return true;
+        this.isRunning = false;
     },
     reset_style: function () {
         print_debug('ElementBase reset_style()');
@@ -917,6 +937,8 @@ const Ping = new Lang.Class({
             } else {
                 this.color = Schema.get_string('ping-bad-color');
             }
+
+            this.updateDrawing();
         }
         GLib.source_remove(this.tagWatchOUT);
         channel.shutdown(true);
@@ -930,6 +952,8 @@ const Ping = new Lang.Class({
             print_debug('Ping error: ' + this.ping_message);
 
             this.color = Schema.get_string('ping-bad-color');
+
+            this.updateDrawing();
         }
         GLib.source_remove(this.tagWatchERR);
         channel.shutdown(false);
