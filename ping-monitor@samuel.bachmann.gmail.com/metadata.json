@@ -3,7 +3,7 @@
     "uuid": "ping-monitor@samuel.bachmann.gmail.com",
     "name": "ping-monitor",
     "url": "https://github.com/anybotics/gnome-shell-ping-monitor-applet",
-    "description": "Display ping information...",
+    "description": "Display ping information. Read the readme to see how it is configured.",
     "settings-schema":  "org.gnome.shell.extensions.ping-monitor",
     "gettext-domain": "ping-monitor",
     "version": -1
