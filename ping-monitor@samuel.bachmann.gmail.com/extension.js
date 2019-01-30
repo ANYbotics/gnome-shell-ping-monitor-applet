@@ -867,7 +867,7 @@ const Ping = new Lang.Class({
             print_debug('Ping info: ' + this.ping_message);
 
             let loss = out.toString().match(/received, (\d*)/m);
-            let times = out.toString().match(/mdev = (\d.\d*)\/(\d.\d*)\/(\d.\d*)\/(\d.\d*)/m);
+            let times = out.toString().match(/mdev = (\d*.\d*)\/(\d*.\d*)\/(\d*.\d*)\/(\d*.\d*)/m);
 
             if (times != null && times.length == 5 &&
                 loss != null && loss.length == 2) {
