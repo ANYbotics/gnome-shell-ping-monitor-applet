@@ -902,11 +902,16 @@ const Ping = new Lang.Class({
     _loadPipeOUT: function(channel, condition, data) {
         if (condition != GLib.IOCondition.HUP) {
             let [size, out] = channel.read_to_end();
-
-            let firstLine = out.toString().match(/[\w .:()]+\n/m);
+            if (out instanceof Uint8Array) {
+                out = imports.byteArray.toString(out);
+            }
+            else {
+              out = out.toString();
+            }
+            let firstLine = out.match(/[\w .:()]+\n/m);
             print_debug('First line: ' + firstLine[0]);
 
-            let lastLines = out.toString().match(/---[\w\W]+/m);
+            let lastLines = out.match(/---[\w\W]+/m);
             lastLines[0] = lastLines[0].replace(/^\s+|\s+$/g, '');
             print_debug('Last lines: ' + lastLines[0]);
 
@@ -914,8 +919,8 @@ const Ping = new Lang.Class({
             this.ping_message = firstLine[0] + lastLines[0];
             print_debug('Ping info: ' + this.ping_message);
 
-            let loss = out.toString().match(/received, (\d*)/m);
-            let times = out.toString().match(/mdev = (\d*.\d*)\/(\d*.\d*)\/(\d*.\d*)\/(\d*.\d*)/m);
+            let loss = out.match(/received, (\d*)/m);
+            let times = out.match(/mdev = (\d*.\d*)\/(\d*.\d*)\/(\d*.\d*)\/(\d*.\d*)/m);
 
             if (times != null && times.length == 5 &&
                 loss != null && loss.length == 2) {
@@ -947,8 +952,12 @@ const Ping = new Lang.Class({
     _loadPipeERR: function(channel, condition, data) {
         if (condition != GLib.IOCondition.HUP) {
             let [size, out] = channel.read_to_end();
-
-            this.ping_message = out.toString();
+            if (out instanceof Uint8Array) {
+              this.ping_message = imports.byteArray.toString(out);
+            }
+            else {
+              this.ping_message = out;
+            }
             print_debug('Ping error: ' + this.ping_message);
 
             this.color = Schema.get_string('ping-bad-color');
@@ -1118,6 +1127,8 @@ function read_from_file(path) {
     try {
         let [ok, contents] = GLib.file_get_contents(path);
         if (ok) {
+          if (contents instanceof Uint8Array)
+            contents = imports.byteArray.toString(contents);
             let map = JSON.parse(contents);
 
             try {
