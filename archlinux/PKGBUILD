@@ -1,6 +1,6 @@
 # Maintainer: Samuel Bachmann aka samuelba <samuel.bachmann@gmail.com>
 pkgname=gnome-shell-ping-monitor-applet-git
-pkgver=20190129
+pkgver=0.0.10.r0.g46448b9
 pkgrel=1
 pkgdesc="Ping monitor extension for Gnome-Shell"
 arch=('any')
@@ -8,28 +8,17 @@ url="http://github.com/anybotics/gnome-shell-ping-monitor-applet"
 license=('GPL3')
 depends=('gnome-shell>=3.3.90' 'libgtop' 'networkmanager')
 makedepends=('git')
-provides=("ping-monitor-applet")
-#install=gschemas.install
+provides=("${pkgname/-git}")
+source=("$pkgname::git+$url")
+md5sums=('SKIP')
 
-_gitroot="git://github.com/anybotics/gnome-shell-ping-monitor-applet.git"
-_gitname="gnome-shell-ping-monitor-applet"
-
-build() {
-    cd ${srcdir}/
-    msg "Connecting to the GIT server..."
-    if [[ -d ${srcdir}/${_gitname} ]] ; then
-	cd ${_gitname}
-        git pull origin
-        msg "The local files are updated..."
-    else
-        git clone ${_gitroot} ${_gitname}
-    fi
-    msg "GIT checkout done."
+pkgver() {
+    cd "$pkgname"
+    git describe --long --tags | sed 's/\([^-]*-g\)/r\1/;s/-/./g'
 }
 
 package() {
-    cd "$srcdir/gnome-shell-ping-monitor-applet"
+    cd "$pkgname"
     mkdir -p "$pkgdir/usr/share/gnome-shell/extensions/"
     cp -R "ping-monitor@samuel.bachmann.gmail.com" "$pkgdir/usr/share/gnome-shell/extensions"
 }
-
