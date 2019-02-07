@@ -802,10 +802,94 @@ const Ping = new Lang.Class({
         this.update();
     },
 
+    _pingReadStdout: function () {
+        this._pingDataStdout.fill_async(-1, GLib.PRIORITY_DEFAULT, null, Lang.bind(this, function(stream, result) {
+            if (stream.fill_finish(result) == 0) {
+                try {
+                    this._pingOutput = stream.peek_buffer().toString();
+                    if (this._pingOutput) {
+                        print_debug('Ping info: ' + this._pingOutput);
+
+                        let firstLine = this._pingOutput.match(/[\w .:()]+\n/m);
+                        print_debug('First line: ' + firstLine[0]);
+
+                        let lastLines = this._pingOutput.match(/---[\w\W]+/m);
+                        lastLines[0] = lastLines[0].replace(/^\s+|\s+$/g, '');
+                        print_debug('Last lines: ' + lastLines[0]);
+
+                        // this.ping_message = this._pingOutput.toString();
+                        this.ping_message = firstLine[0] + lastLines[0];
+                        print_debug('Ping info: ' + this.ping_message);
+
+                        let loss = this._pingOutput.match(/received, (\d*)/m);
+                        let times = this._pingOutput.match(/mdev = (\d*.\d*)\/(\d*.\d*)\/(\d*.\d*)\/(\d*.\d*)/m);
+
+                        if (times != null && times.length == 5 &&
+                            loss != null && loss.length == 2) {
+                            print_debug('loss: ' + loss[1]);
+                            print_debug('min: ' + times[1]);
+                            print_debug('avg: ' + times[2]);
+                            print_debug('max: ' + times[3]);
+                            print_debug('mdev: ' + times[4]);
+
+                            if (loss[1] != 0 && loss[1] != 100) {
+                                this.color = Schema.get_string('ping-loss-color');
+                            } else if (loss[1] == 100) {
+                                this.color = Schema.get_string('ping-bad-color');
+                            } else if (times[3] > this.warning_threshold) {
+                                this.color = Schema.get_string('ping-warning-color');
+                            } else {
+                                this.color = Schema.get_string('ping-good-color');
+                            }
+                        } else {
+                            this.color = Schema.get_string('ping-bad-color');
+                        }
+                        this.updateDrawing();
+                    }
+                } catch (e) {
+                    print_info(e.toString());
+                    this.color = Schema.get_string('ping-bad-color');
+                    this.updateDrawing();
+                }
+                this._pingStdout.close(null);
+                return;
+            }
+
+            stream.set_buffer_size(2 * stream.get_buffer_size());
+            this._pingReadStdout();
+        }));
+    },
+
+    _pingReadStderr: function () {
+        this._pingDataStderr.fill_async(-1, GLib.PRIORITY_DEFAULT, null, Lang.bind(this, function(stream, result) {
+            if (stream.fill_finish(result) == 0) {
+                try {
+                    this._pingOutputErr = stream.peek_buffer().toString();
+                    if (this._pingOutputErr) {
+                        this.ping_message = this._pingOutputErr;
+                        print_debug('Ping error: ' + this.ping_message);
+
+                        this.color = Schema.get_string('ping-bad-color');
+
+                        this.updateDrawing();
+                    }
+                } catch (e) {
+                    print_info(e.toString());
+                    this.color = Schema.get_string('ping-bad-color');
+                    this.updateDrawing();
+                }
+                this._pingStderr.close(null);
+                return;
+            }
+
+            stream.set_buffer_size(2 * stream.get_buffer_size());
+            this._pingReadStderr();
+        }));
+    },
+
     refresh: function () {
         print_debug('Ping refresh()');
 
-/*
         // Run asynchronously, to avoid shell freeze
         try {
             let path = Me.dir.get_path();
@@ -819,38 +903,48 @@ const Ping = new Lang.Class({
             ];
 
             let [, pid, in_fd, out_fd, err_fd] = GLib.spawn_async_with_pipes(
-                null,
+                null, /* cwd */
                 script,
-                null,
+                null, /* env */
                 GLib.SpawnFlags.DO_NOT_REAP_CHILD,
-                null);
+                null /* child_setup */);
 
-            let _tmp_stream = new Gio.DataInputStream({
-                base_stream: new Gio.UnixInputStream({fd: in_fd})
-            });
-            _tmp_stream.close(null);
+            this._pingStdout = new Gio.UnixInputStream({fd: out_fd, close_fd: true});
+            this._pingDataStdout = new Gio.DataInputStream({base_stream: this._pingStdout});
+            this._pingStderr = new Gio.UnixInputStream({fd: err_fd, close_fd: true});
+            this._pingDataStderr = new Gio.DataInputStream({base_stream: this._pingStderr});
+            new Gio.UnixOutputStream({fd: in_fd, close_fd: true}).close(null);
 
-            // Let's buffer the command's error - that's an input for us!
-            this._process_error = new Gio.DataInputStream({
-                base_stream: new Gio.UnixInputStream({fd: err_fd})
-            });
+            this._pingReadStdout();
+            this._pingReadStderr();
 
-            // Let's buffer the command's output - that's an input for us!
-            this._process_stream = new Gio.DataInputStream({
-                base_stream: new Gio.UnixInputStream({fd: out_fd})
-            });
-
-            // We will process the output at once when it's done
-            this._process_sourceId = GLib.child_watch_add(
-                GLib.PRIORITY_DEFAULT,
-                pid,
-                Lang.bind(this, this._readPingResult)
-            );
-        } catch (err) {
+            // let _tmp_stream = new Gio.DataInputStream({
+            //     base_stream: new Gio.UnixInputStream({fd: in_fd})
+            // });
+            // _tmp_stream.close(null);
+            //
+            // // Let's buffer the command's error - that's an input for us!
+            // this._process_error = new Gio.DataInputStream({
+            //     base_stream: new Gio.UnixInputStream({fd: err_fd})
+            // });
+            //
+            // // Let's buffer the command's output - that's an input for us!
+            // this._process_stream = new Gio.DataInputStream({
+            //     base_stream: new Gio.UnixInputStream({fd: out_fd})
+            // });
+            //
+            // // We will process the output at once when it's done
+            // this._process_sourceId = GLib.child_watch_add(
+            //     GLib.PRIORITY_DEFAULT,
+            //     pid,
+            //     Lang.bind(this, this._readPingResult)
+            // );
+        } catch (e) {
+            print_info(e.toString());
             // Deal with the error
         }
-*/
 
+/*
         let path = Me.dir.get_path();
         let success;
         this.command = [
@@ -896,9 +990,10 @@ const Ping = new Lang.Class({
             Lang.bind(this, this._loadPipeERR)//,
             // null
         );
-
+*/
     },
 
+/*
     _loadPipeOUT: function(channel, condition, data) {
         if (condition != GLib.IOCondition.HUP) {
             let [size, out] = channel.read_to_end();
@@ -966,78 +1061,6 @@ const Ping = new Lang.Class({
         }
         GLib.source_remove(this.tagWatchERR);
         channel.shutdown(false);
-    },
-
-/*
-    _readPingResult: function () {
-        print_debug('Ping _readPingResult()');
-
-        print_debug('------------------------------------------------------------------------------');
-        print_debug('name: ' + this.name);
-        let out, size;
-
-        let has_error = false;
-        if (this._process_error) {
-            [out, size] = this._process_error.read_line_utf8(null);
-            if (out !== null) {
-                has_error = true;
-                this.ping_message = out;
-                this.color = '#ff0000';
-                print_debug('ping error: ' + out);
-            }
-        }
-
-        if (!has_error) {
-            let usage = [];
-            if (this._process_stream) {
-                this.ping_message = '';
-                do {
-                    [out, size] = this._process_stream.read_line_utf8(null);
-                    if (out !== null) {
-                        usage.push(out);
-
-                        print_debug('ping result: ' + out);
-                        this.ping_message += out + '\n';
-                    }
-                } while (out !== null);
-
-                let min = 9999;
-                let avg = 9999;
-                let max = 9999;
-                try {
-                    let timing_stats = usage[usage.length - 1].split('=')[1].split('/');
-                    min = timing_stats[0];
-                    avg = timing_stats[1];
-                    max = timing_stats[2];
-                } catch (e) {
-                    print_debug('error: ' + e);
-                }
-
-                let loss = 100;
-                try {
-                    let xmit_stats = usage[usage.length - 2].split('%');
-                    let s = xmit_stats[0].split(' ');
-                    loss = s[s.length - 1];
-                } catch (e) {
-                    print_debug('error: ' + e);
-                }
-
-                print_debug('loss: ' + loss);
-                print_debug('min: ' + min);
-                print_debug('avg: ' + avg);
-                print_debug('max: ' + max);
-
-                if (loss == 100) {
-                    this.color = '#ff0000';
-                } else if (max > this.warning_treshold) {
-                    this.color = '#ffaa00';
-                } else {
-                    this.color = '#00ff00';
-                }
-            }
-        }
-
-        this._endProcess();
     },
 */
 
