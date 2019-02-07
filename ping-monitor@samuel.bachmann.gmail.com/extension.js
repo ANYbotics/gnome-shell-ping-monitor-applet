@@ -601,7 +601,7 @@ const ElementBase = new Lang.Class({
 
     refresh_interval: 5000, // milliseconds between ping
     visible: true, // show in the system tray
-
+    timeout: undefined,
 
     _init: function () {
         print_debug('ElementBase _init()');
@@ -628,10 +628,8 @@ const ElementBase = new Lang.Class({
         //         }));
 
         this.interval = this.refresh_interval; // milliseconds
-        this.timeout = Mainloop.timeout_add(
-            this.interval,
-            Lang.bind(this, this.update)
-        );
+        // Add the timeout for the first time.
+        this.add_timeout();
         /*
         Schema.connect(
             'changed::' + this.elt + '-refresh-time',
@@ -684,6 +682,22 @@ const ElementBase = new Lang.Class({
 
         this.chart.actor.queue_repaint();
     },
+    add_timeout: function() {
+        this.remove_timeout();
+        print_debug('Add timeout: ' + this.tag);
+        this.timeout = Mainloop.timeout_add(
+            this.interval,
+            Lang.bind(this, this.update)
+        );
+    },
+    remove_timeout: function() {
+        print_debug('Remove (try) timeout: ' + this.tag);
+        if (this.timeout !== undefined) {
+            print_debug('Remove timeout: ' + this.tag);
+            Mainloop.source_remove(this.timeout);
+            this.timeout = undefined;
+        }
+    },
     tip_format: function () {
         print_debug('ElementBase tip_format()');
 
@@ -702,11 +716,9 @@ const ElementBase = new Lang.Class({
     update: function () {
         print_debug('ElementBase update()');
 
-        // Ensure it is not running twice.
-        if (this.isRunning) {
-            return true;
-        }
-        this.isRunning = true;
+        // Remove timeout from Mainloop.
+        // It will be added again after the async reading of the ping std output (_pingReadStdout).
+        this.remove_timeout();
 
         // Refresh ping.
         if (!this.menu_visible && !this.actor.visible) {
@@ -722,7 +734,6 @@ const ElementBase = new Lang.Class({
         for (let i = 0; i < this.tip_vals.length; i++) {
             this.tip_labels[i].text = this.tip_vals[i].toString();
         }
-        this.isRunning = false;
     },
     reset_style: function () {
         print_debug('ElementBase reset_style()');
@@ -744,10 +755,7 @@ const ElementBase = new Lang.Class({
         print_debug('ElementBase destroy()');
 
         TipBox.prototype.destroy.call(this);
-        if (this.timeout) {
-            Mainloop.source_remove(this.timeout);
-            this.timeout = null;
-        }
+        this.remove_timeout();
     }
 });
 
@@ -857,6 +865,9 @@ const Ping = new Lang.Class({
                     this.updateDrawing();
                 }
                 this._pingStdout.close(null);
+
+                // Add timeout to Mainloop, this will call ping the next time after the defined interval.
+                this.add_timeout();
                 return;
             }
 
