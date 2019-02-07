@@ -806,7 +806,12 @@ const Ping = new Lang.Class({
         this._pingDataStdout.fill_async(-1, GLib.PRIORITY_DEFAULT, null, Lang.bind(this, function(stream, result) {
             if (stream.fill_finish(result) == 0) {
                 try {
-                    this._pingOutput = stream.peek_buffer().toString();
+                    if (stream.peek_buffer() instanceof Uint8Array) {
+                      this._pingOutput = imports.byteArray.toString(stream.peek_buffer())
+                    }
+                    else {
+                      this._pingOutput = stream.peek_buffer().toString();
+                    }
                     if (this._pingOutput) {
                         print_debug('Ping info: ' + this._pingOutput);
 
@@ -864,7 +869,12 @@ const Ping = new Lang.Class({
         this._pingDataStderr.fill_async(-1, GLib.PRIORITY_DEFAULT, null, Lang.bind(this, function(stream, result) {
             if (stream.fill_finish(result) == 0) {
                 try {
-                    this._pingOutputErr = stream.peek_buffer().toString();
+                    if (stream.peek_buffer() instanceof Uint8Array) {
+                      this._pingOutputErr = imports.byteArray.toString(stream.peek_buffer())
+                    }
+                    else {
+                      this._pingOutputErr = stream.peek_buffer().toString();
+                    }
                     if (this._pingOutputErr) {
                         this.ping_message = this._pingOutputErr;
                         print_debug('Ping error: ' + this.ping_message);
