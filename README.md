@@ -1,7 +1,5 @@
 ## Gnome shell ping monitor extension
 
-This is still in development and just an alpha version.
-
 ![Ping Monitor](images/ping-monitor.png)
 
 ![Ping Monitor Preference](images/ping-monitor-preference.png)
