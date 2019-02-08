@@ -355,7 +355,7 @@ const StatusSquare = new Lang.Class({
         }
         if (this._isPingUpdate) {
             this._isPingUpdate = false;
-            this._activityState++;
+            this._activityState += 2;
             if (this._activityState >= 4) {
                 this._activityState = 0;
             }
