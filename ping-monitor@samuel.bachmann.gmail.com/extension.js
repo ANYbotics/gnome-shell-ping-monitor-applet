@@ -300,9 +300,6 @@ const StatusSquare = new Lang.Class({
         this.actor.set_height(this.height = height);
         this.actor.connect('repaint', Lang.bind(this, this._draw));
         this.data = [];
-        // for (let i = 0; i < this.parentC.colors.length; i++) {
-        //     this.data[i] = [];
-        // }
     },
     update: function (color, isPingUpdate) {
         print_debug('StatusSquare update()');
@@ -368,18 +365,6 @@ const StatusSquare = new Lang.Class({
     },
     resize: function (schema, key) {
         print_debug('StatusSquare resize()');
-
-        // let old_width = this._width;
-        // this._width = Schema.get_int(key);
-        // if (old_width === this._width) {
-        //     return;
-        // }
-        // this.actor.set_width(this._width);
-        // if (this._width < this.data[0].length) {
-        //     for (let i = 0; i < this.parentC.colors.length; i++) {
-        //         this.data[i] = this.data[i].slice(-this._width);
-        //     }
-        // }
     }
 });
 
@@ -419,9 +404,6 @@ const TipMenu = new Lang.Class({
     },
     _boxGetPreferredWidth: function (actor, forHeight, alloc) {
         print_debug('TipMenu _boxGetPreferredWidth()');
-
-        // let columnWidths = this.getColumnWidths();
-        // this.setColumnWidths(columnWidths);
 
         [alloc.min_size, alloc.natural_size] = this.box.get_preferred_width(forHeight);
     },
@@ -620,64 +602,22 @@ const ElementBase = new Lang.Class({
                 }));
 
         this.actor.visible = this.visible;//Schema.get_boolean(this.elt + '-display');
-        // Schema.connect(
-        //     'changed::' + this.elt + '-display',
-        //     Lang.bind(this,
-        //         function (schema, key) {
-        //             this.actor.visible = Schema.get_boolean(key);
-        //         }));
 
         this.interval = this.refresh_interval; // milliseconds
         // Add the timeout for the first time.
         this.add_timeout();
-        /*
-        Schema.connect(
-            'changed::' + this.elt + '-refresh-time',
-            Lang.bind(this,
-                function (schema, key) {
-                    Mainloop.source_remove(this.timeout);
-                    this.timeout = null;
-                    this.interval = l_limit(Schema.get_int(key));
-                    this.timeout = Mainloop.timeout_add(
-                        this.interval, Lang.bind(this, this.update));
-                }));
-        Schema.connect('changed::' + this.elt + '-graph-width',
-            Lang.bind(this.chart, this.chart.resize));
-
-        if (this.elt === 'thermal') {
-            Schema.connect('changed::thermal-threshold',
-                Lang.bind(this,
-                    function () {
-                        Mainloop.source_remove(this.timeout);
-                        this.timeout = null;
-                        this.reset_style();
-                        this.timeout = Mainloop.timeout_add(
-                            this.interval, Lang.bind(this, this.update));
-                    }));
-        }
-        */
 
         this.label = new St.Label({text: this.name, style_class: Style.get('sm-status-label')});
-        // this.label = new St.Label({text: this.elt === 'memory' ? _('mem') : _(this.elt),
-        //     style_class: Style.get('sm-status-label')});
         change_text.call(this);
-        // Schema.connect('changed::' + this.elt + '-show-text', Lang.bind(this, change_text));
 
         this.menu_visible = true;
-        // this.menu_visible = Schema.get_boolean(this.elt + '-show-menu');
-        // Schema.connect('changed::' + this.elt + '-show-menu', Lang.bind(this, change_menu));
 
         this.actor.add_actor(this.label); //this.actor = new St.BoxLayout({reactive: true});
         this.text_box = new St.BoxLayout();
 
-        // this.actor.add_actor(this.text_box);
         this.text_items = this.create_text_items();
-        // for (let item in this.text_items) {
-        //     this.text_box.add_actor(this.text_items[item]);
-        // }
         this.actor.add_actor(this.chart.actor);
         change_style.call(this);
-        // Schema.connect('changed::' + this.elt + '-style', Lang.bind(this, change_style));
         this.menu_items = this.create_menu_items();
 
         this.chart.actor.queue_repaint();
@@ -945,152 +885,11 @@ const Ping = new Lang.Class({
 
             this._pingReadStdout();
             this._pingReadStderr();
-
-            // let _tmp_stream = new Gio.DataInputStream({
-            //     base_stream: new Gio.UnixInputStream({fd: in_fd})
-            // });
-            // _tmp_stream.close(null);
-            //
-            // // Let's buffer the command's error - that's an input for us!
-            // this._process_error = new Gio.DataInputStream({
-            //     base_stream: new Gio.UnixInputStream({fd: err_fd})
-            // });
-            //
-            // // Let's buffer the command's output - that's an input for us!
-            // this._process_stream = new Gio.DataInputStream({
-            //     base_stream: new Gio.UnixInputStream({fd: out_fd})
-            // });
-            //
-            // // We will process the output at once when it's done
-            // this._process_sourceId = GLib.child_watch_add(
-            //     GLib.PRIORITY_DEFAULT,
-            //     pid,
-            //     Lang.bind(this, this._readPingResult)
-            // );
         } catch (e) {
             print_info(e.toString());
             // Deal with the error
         }
-
-/*
-        let path = Me.dir.get_path();
-        let success;
-        this.command = [
-            '/bin/bash',
-            path + '/ping.sh',
-            this.address,
-            '' + this.ping_count,
-            '' + this.ping_deadline,
-            '' + this.ping_interval
-        ];
-        [success, this.child_pid, this.std_in, this.std_out, this.std_err] =
-            GLib.spawn_async_with_pipes(
-                null,
-                this.command,
-                null,
-                GLib.SpawnFlags.SEARCH_PATH | GLib.SpawnFlags.DO_NOT_REAP_CHILD,
-                null);
-
-        if (!success) {
-            return;
-        }
-
-        this.IOchannelIN = GLib.IOChannel.unix_new(this.std_in);
-        this.IOchannelOUT = GLib.IOChannel.unix_new(this.std_out);
-        this.IOchannelERR = GLib.IOChannel.unix_new(this.std_err);
-
-        this.IOchannelIN.shutdown(false);
-
-        this.tagWatchChild = GLib.child_watch_add(GLib.PRIORITY_DEFAULT, this.child_pid,
-            Lang.bind(this, function(pid, status, data) {
-                GLib.source_remove(this.tagWatchChild);
-                GLib.spawn_close_pid(pid);
-                this.child_pid = undefined;
-            })
-        );
-        this.tagWatchOUT = GLib.io_add_watch(this.IOchannelOUT, GLib.PRIORITY_DEFAULT,
-            GLib.IOCondition.IN | GLib.IOCondition.HUP,
-            Lang.bind(this, this._loadPipeOUT)//,
-            // null
-        );
-        this.tagWatchERR = GLib.io_add_watch(this.IOchannelERR, GLib.PRIORITY_DEFAULT,
-            GLib.IOCondition.IN | GLib.IOCondition.HUP,
-            Lang.bind(this, this._loadPipeERR)//,
-            // null
-        );
-*/
     },
-
-/*
-    _loadPipeOUT: function(channel, condition, data) {
-        if (condition != GLib.IOCondition.HUP) {
-            let [size, out] = channel.read_to_end();
-            if (out instanceof Uint8Array) {
-                out = imports.byteArray.toString(out);
-            }
-            else {
-              out = out.toString();
-            }
-            let firstLine = out.match(/[\w .:()]+\n/m);
-            print_debug('First line: ' + firstLine[0]);
-
-            let lastLines = out.match(/---[\w\W]+/m);
-            lastLines[0] = lastLines[0].replace(/^\s+|\s+$/g, '');
-            print_debug('Last lines: ' + lastLines[0]);
-
-            // this.ping_message = out.toString();
-            this.ping_message = firstLine[0] + lastLines[0];
-            print_debug('Ping info: ' + this.ping_message);
-
-            let loss = out.match(/received, (\d*)/m);
-            let times = out.match(/mdev = (\d*.\d*)\/(\d*.\d*)\/(\d*.\d*)\/(\d*.\d*)/m);
-
-            if (times != null && times.length == 5 &&
-                loss != null && loss.length == 2) {
-                print_debug('loss: ' + loss[1]);
-                print_debug('min: ' + times[1]);
-                print_debug('avg: ' + times[2]);
-                print_debug('max: ' + times[3]);
-                print_debug('mdev: ' + times[4]);
-
-                if (loss[1] != 0 && loss[1] != 100) {
-                    this.color = Schema.get_string('ping-loss-color');
-                } else if (loss[1] == 100) {
-                    this.color = Schema.get_string('ping-bad-color');
-                } else if (times[3] > this.warning_threshold) {
-                    this.color = Schema.get_string('ping-warning-color');
-                } else {
-                    this.color = Schema.get_string('ping-good-color');
-                }
-            } else {
-                this.color = Schema.get_string('ping-bad-color');
-            }
-
-            this.updateDrawing();
-        }
-        GLib.source_remove(this.tagWatchOUT);
-        channel.shutdown(true);
-    },
-
-    _loadPipeERR: function(channel, condition, data) {
-        if (condition != GLib.IOCondition.HUP) {
-            let [size, out] = channel.read_to_end();
-            if (out instanceof Uint8Array) {
-              this.ping_message = imports.byteArray.toString(out);
-            }
-            else {
-              this.ping_message = out;
-            }
-            print_debug('Ping error: ' + this.ping_message);
-
-            this.color = Schema.get_string('ping-bad-color');
-
-            this.updateDrawing();
-        }
-        GLib.source_remove(this.tagWatchERR);
-        channel.shutdown(false);
-    },
-*/
 
     _endProcess: function () {
         print_debug('Ping _endProcess()');
@@ -1170,10 +969,6 @@ const Icon = new Lang.Class({
 
 function read_from_file(path) {
     print_info('read_from_file()');
-
-    //for (let eltName in Main.__sm.elts) {
-    //    Main.__sm.elts[eltName].destroy();
-    //}
 
     try {
         let [ok, contents] = GLib.file_get_contents(path);
@@ -1256,31 +1051,6 @@ function build_ping_applet() {
     Schema = Convenience.getSettings();
     Style = new smStyleManager();
 
-    // /*
-    // try {
-    //     let arr1 = Schema.get_strv('ping-tags');
-    //     log('[Ping monitor] tag 0: ' + arr1[0]);
-    //     log('[Ping monitor] tag 1: ' + arr1[1]);
-    //     log('[Ping monitor] tag 2: ' + arr1[2]);
-    // } catch (e) {
-    //     log('[Ping monitor] catched error: ' + e);
-    // }
-    //
-    // try {
-    //     let arr2 = Schema.get_strv('ping-ids');
-    //     log('[Ping monitor] id 0: ' + parseInt(arr2[0]));
-    //     log('[Ping monitor] id 1: ' + parseInt(arr2[1]));
-    //     log('[Ping monitor] id 2: ' + parseInt(arr2[2]));
-    //
-    //     let arr3 = Schema.get_strv('ping-show-text');
-    //     log('[Ping monitor] show text 0: ' + (arr3[0] === 'true'));
-    //     log('[Ping monitor] show text 1: ' + (arr3[1] === 'true'));
-    //     log('[Ping monitor] show text 2: ' + (arr3[2] === 'true'));
-    // } catch (e) {
-    //     log('[Ping monitor] catched error: ' + e);
-    // }
-    // */
-
     Background = color_from_string(Schema.get_string('background'));
 
     if (!(smDepsGtop)) {
@@ -1318,10 +1088,6 @@ function build_ping_applet() {
         }
         isFileOk = read_from_file(path);
         Schema.set_boolean('icon-display', !isFileOk);
-
-        // Main.__sm.elts.push(new Ping(0, 'google', 'Google', '8.8.8.8', true));
-        // Main.__sm.elts.push(new Ping(1, 'rubbish', 'Rubbish', '8.8.4.9', true));
-        // Main.__sm.elts.push(new Ping(2, 'apc', 'LPC', '192.168.0.141', true));
 
         let tray = Main.__sm.tray;
         let elts = Main.__sm.elts;
@@ -1392,14 +1158,6 @@ function build_ping_applet() {
         item = new PopupMenu.PopupMenuItem(_('Preferences...'));
         item.connect('activate', function () {
             Util.spawn(["gnome-shell-extension-prefs", "ping-monitor@samuel.bachmann.gmail.com"]);
-
-            // if (_gsmPrefs.get_state() === _gsmPrefs.SHELL_APP_STATE_RUNNING) {
-            //     _gsmPrefs.activate();
-            // } else {
-            //     let info = _gsmPrefs.get_app_info();
-            //     let timestamp = global.display.get_current_time_roundtrip();
-            //     info.launch_uris([metadata.uuid], global.create_app_launch_context(timestamp, -1));
-            // }
         });
         tray.menu.addMenuItem(item);
 
