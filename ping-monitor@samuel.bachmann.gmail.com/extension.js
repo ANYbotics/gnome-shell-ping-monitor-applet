@@ -865,6 +865,9 @@ const Ping = new Lang.Class({
                     this.updateDrawing();
                 }
                 this._pingStdout.close(null);
+                this._pingStdout = null;
+                this._pingDataStdout.close(null);
+                this._pingDataStdout = null;
 
                 // Add timeout to Mainloop, this will call ping the next time after the defined interval.
                 this.add_timeout();
@@ -900,6 +903,10 @@ const Ping = new Lang.Class({
                     this.updateDrawing();
                 }
                 this._pingStderr.close(null);
+                this._pingStderr = null;
+                this._pingDataStderr.close(null);
+                this._pingDataStderr = null;
+
                 return;
             }
 
