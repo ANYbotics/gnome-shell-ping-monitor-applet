@@ -1,7 +1,7 @@
 /* -*- mode: js2; js2-basic-offset: 4; indent-tabs-mode: nil -*- */
 
 // ping-monitor: Gnome shell extension displaying ping informations in gnome shell status bar.
-// Copyright (C) 2019 Samuel Bachmann, samuel.bachmann@gmail.com
+// Copyright (C) 2019 Samuel Bachmann, sbachmann@anybotics.com
 
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
