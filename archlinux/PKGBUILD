@@ -1,4 +1,4 @@
-# Maintainer: Samuel Bachmann aka samuelba <sbachmann@anybotics.com>  
+# Maintainer: Samuel Bachmann aka samuelba <sbachmann@anybotics.com>
 pkgname=gnome-shell-ping-monitor-applet-git
 pkgver=0.0.10.r0.g46448b9
 pkgrel=1
