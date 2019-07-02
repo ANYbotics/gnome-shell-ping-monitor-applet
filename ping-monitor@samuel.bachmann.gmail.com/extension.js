@@ -883,18 +883,28 @@ const Ping = new Lang.Class({
         '' + this.ping_interval
       ];
 
-      let [, pid, in_fd, out_fd, err_fd] = GLib.spawn_async_with_pipes(
+      let success;
+      [success, this.child_pid, this.in_fd, this.out_fd, this.err_fd] = GLib.spawn_async_with_pipes(
         null, /* cwd */
         script,
         null, /* env */
         GLib.SpawnFlags.DO_NOT_REAP_CHILD,
         null /* child_setup */);
 
-      this._pingStdout = new Gio.UnixInputStream({fd: out_fd, close_fd: true});
+      this._pingStdout = new Gio.UnixInputStream({fd: this.out_fd, close_fd: true});
       this._pingDataStdout = new Gio.DataInputStream({base_stream: this._pingStdout});
-      this._pingStderr = new Gio.UnixInputStream({fd: err_fd, close_fd: true});
+      this._pingStderr = new Gio.UnixInputStream({fd: this.err_fd, close_fd: true});
       this._pingDataStderr = new Gio.DataInputStream({base_stream: this._pingStderr});
-      new Gio.UnixOutputStream({fd: in_fd, close_fd: true}).close(null);
+      new Gio.UnixOutputStream({fd: this.in_fd, close_fd: true}).close(null);
+
+      // Close bash.
+      this._tagWatchChild = GLib.child_watch_add(GLib.PRIORITY_DEFAULT, this.child_pid,
+        Lang.bind(this, function(pid, status, data) {
+          GLib.source_remove(this._tagWatchChild);
+          GLib.spawn_close_pid(pid);
+          this.child_pid = undefined;
+        })
+      );
 
       this._pingReadStdout();
       this._pingReadStderr();
