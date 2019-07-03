@@ -71,9 +71,6 @@ libgtop and gir bindings\n\
 \t    on Arch: libgtop\n\
 \t    on openSUSE: typelib-1_0-GTop-2_0\n');
 
-// stale network shares will cause the shell to freeze, enable this with caution
-const ENABLE_NETWORK_DISK_USAGE = false;
-
 let extension = imports.misc.extensionUtils.getCurrentExtension();
 let metadata = extension.metadata;
 let shell_Version = Config.PACKAGE_VERSION;
@@ -164,25 +161,24 @@ function change_menu() {
 
 let color_from_string = Compat.color_from_string;
 
-const smStyleManager = new Lang.Class({
-  Name: 'PingMonitor.smStyleManager',
-  _extension: '',
-  _iconsize: 1,
-  _diskunits: _('MiB/s'),
-  _netunits_kbytes: _('KiB/s'),
-  _netunits_mbytes: _('MiB/s'),
-  _netunits_kbits: _('kbit/s'),
-  _netunits_mbits: _('Mbit/s'),
-  _pie_width: 300,
-  _pie_height: 300,
-  _pie_fontsize: 14,
-  _bar_width: 300,
-  _bar_height: 150,
-  _bar_fontsize: 14,
-  _text_scaling: 1,
+const smStyleManager = class PingMonitor_smStyleManager {
+  constructor() {
+    print_debug('smStyleManager constructor()');
 
-  _init: function () {
-    print_debug('smStyleManager _init()');
+    this._extension = '';
+    this._iconsize = 1;
+    this._diskunits = _('MiB/s');
+    this._netunits_kbytes = _('KiB/s');
+    this._netunits_mbytes = _('MiB/s');
+    this._netunits_kbits = _('kbit/s');
+    this._netunits_mbits = _('Mbit/s');
+    this._pie_width = 300;
+    this._pie_height = 300;
+    this._pie_fontsize = 14;
+    this._bar_width = 300;
+    this._bar_height = 150;
+    this._bar_fontsize = 14;
+    this._text_scaling = 1;
 
     let interfaceSettings = new Gio.Settings({
       schema: 'org.gnome.desktop.interface'
@@ -191,132 +187,114 @@ const smStyleManager = new Lang.Class({
     if (!this._text_scaling) {
       this._text_scaling = 1;
     }
-  },
-  get: function (style) {
+  }
+  get(style) {
     return style + this._extension;
-  },
-  iconsize: function () {
+  }
+  iconsize() {
     return this._iconsize;
-  },
-  diskunits: function () {
+  }
+  diskunits() {
     return this._diskunits;
-  },
-  netunits_kbytes: function () {
+  }
+  netunits_kbytes() {
     return this._netunits_kbytes;
-  },
-  netunits_mbytes: function () {
+  }
+  netunits_mbytes() {
     return this._netunits_mbytes;
-  },
-  netunits_kbits: function () {
+  }
+  netunits_kbits() {
     return this._netunits_kbits;
-  },
-  netunits_mbits: function () {
+  }
+  netunits_mbits() {
     return this._netunits_mbits;
-  },
-  pie_width: function () {
+  }
+  pie_width() {
     return this._pie_width;
-  },
-  pie_height: function () {
+  }
+  pie_height() {
     return this._pie_height;
-  },
-  pie_fontsize: function () {
+  }
+  pie_fontsize() {
     return this._pie_fontsize * this._text_scaling;
-  },
-  bar_width: function () {
+  }
+  bar_width() {
     return this._bar_width;
-  },
-  bar_height: function () {
+  }
+  bar_height() {
     return this._bar_height;
-  },
-  bar_fontsize: function () {
+  }
+  bar_fontsize() {
     return this._bar_fontsize * this._text_scaling;
-  },
-  text_scaling: function () {
+  }
+  text_scaling() {
     return this._text_scaling;
-  },
-});
+  }
+};
 
-const smDialog = Lang.Class({
-  Name: 'PingMonitor.smDialog',
-  Extends: ModalDialog.ModalDialog,
+const smDialog = class PingMonitor_smDialog extends ModalDialog.ModalDialog {
+  constructor() {
+    super({styleClass: 'prompt-dialog'});
 
-  _init: function () {
-    print_debug('smDialog _init()');
+    print_debug('smDialog construct()');
 
-    this.parent({styleClass: 'prompt-dialog'});
-    let mainContentBox = new St.BoxLayout({
-      style_class: 'prompt-dialog-main-layout',
-      vertical: false
-    });
+    let mainContentBox = new St.BoxLayout({style_class: 'prompt-dialog-main-layout',
+      vertical: false});
     this.contentLayout.add(mainContentBox,
-      {
-        x_fill: true,
-        y_fill: true
-      });
+      {x_fill: true,
+        y_fill: true});
 
-    let messageBox = new St.BoxLayout({
-      style_class: 'prompt-dialog-message-layout',
-      vertical: true
-    });
+    let messageBox = new St.BoxLayout({style_class: 'prompt-dialog-message-layout',
+      vertical: true});
     mainContentBox.add(messageBox,
       {y_align: St.Align.START});
 
-    this._subjectLabel = new St.Label({
-      style_class: 'prompt-dialog-headline',
-      text: _('Ping Monitor Extension')
-    });
+    this._subjectLabel = new St.Label({style_class: 'prompt-dialog-headline',
+      text: _('Ping Monitor Extension')});
 
     messageBox.add(this._subjectLabel,
-      {
-        y_fill: false,
-        y_align: St.Align.START
-      });
+      {y_fill: false,
+        y_align: St.Align.START});
 
-    this._descriptionLabel = new St.Label({
-      style_class: 'prompt-dialog-description',
-      text: MESSAGE
-    });
+    this._descriptionLabel = new St.Label({style_class: 'prompt-dialog-description',
+      text: MESSAGE});
 
     messageBox.add(this._descriptionLabel,
-      {
-        y_fill: true,
-        y_align: St.Align.START
-      });
-
+      {y_fill: true,
+        y_align: St.Align.START});
 
     this.setButtons([
       {
         label: _('Cancel'),
-        action: Lang.bind(this, function () {
+        action: () => {
           this.close();
-        }),
+        },
         key: Clutter.Escape
       }
     ]);
-  },
+  }
+};
 
-});
+const StatusSquare = class PingMonitor_StatusSquare {
+  constructor(height, parent) {
+    print_debug('StatusSquare constructor()');
 
-const StatusSquare = new Lang.Class({
-  Name: 'PingMonitor.StatusSquare',
-
-  _width: 10,
-  _color: '#ff0000',
-  _activityState: 0,
-  _activityWidth: 4,
-  _isPingUpdate: false,
-
-  _init: function (height, parent) {
-    print_debug('StatusSquare _init()');
+    this._width = 10;
+    this._color = '#ff0000';
+    this._activityState = 0;
+    this._activityWidth = 4;
+    this._isPingUpdate = false;
 
     this.actor = new St.DrawingArea({style_class: Style.get('sm-chart'), reactive: false});
     this.parentC = parent;
     this.actor.set_width(this._width);
     this.actor.set_height(this.height = height);
-    this.actor.connect('repaint', Lang.bind(this, this._draw));
+    // this.actor.connect('repaint', Lang.bind(this, this._draw));
+    this.actor.connect('repaint', this._draw.bind(this));
     this.data = [];
-  },
-  update: function (color, isPingUpdate) {
+  }
+
+  update(color, isPingUpdate) {
     print_debug('StatusSquare update()');
 
     this._color = color;
@@ -326,8 +304,8 @@ const StatusSquare = new Lang.Class({
       return;
     }
     this.actor.queue_repaint();
-  },
-  _draw: function () {
+  }
+  _draw() {
     print_debug('StatusSquare _draw()');
 
     if (!this.actor.visible) {
@@ -377,62 +355,69 @@ const StatusSquare = new Lang.Class({
     if (Compat.versionCompare(shell_Version, '3.7.4')) {
       cr.$dispose();
     }
-  },
-  resize: function (schema, key) {
+  }
+  resize(schema, key) {
     print_debug('StatusSquare resize()');
   }
-});
+};
 
-const TipItem = new Lang.Class({
-  Name: 'PingMonitor.TipItem',
-  Extends: PopupMenu.PopupBaseMenuItem,
+const TipItem = class PingMonitor_TipItem extends PopupMenu.PopupBaseMenuItem {
+  constructor() {
+    super();
 
-  _init: function () {
-    print_debug('TipItem _init()');
+    print_debug('TipItem constructor()');
 
-    PopupMenu.PopupBaseMenuItem.prototype._init.call(this);
+    // PopupMenu.PopupBaseMenuItem.prototype._init.call(this);
     this.actor.remove_style_class_name('popup-menu-item');
     this.actor.add_style_class_name('sm-tooltip-item');
   }
-});
+};
 
 /**
  * Tooltip when hovering
  * @type {Lang.Class}
  */
-const TipMenu = new Lang.Class({
-  Name: 'PingMonitor.TipMenu',
-  Extends: PopupMenu.PopupMenuBase,
-
-  _init: function (sourceActor) {
-    print_debug('TipMenu _init()');
-
+const TipMenu = class PingMonitor_TipMenu extends PopupMenu.PopupMenuBase {
+  constructor(sourceActor) {
+    print_debug('TipMenu constructor()');
     // PopupMenu.PopupMenuBase.prototype._init.call(this, sourceActor, 'sm-tooltip-box');
-    this.parent(sourceActor, 'sm-tooltip-box');
-    this.actor = new Shell.GenericContainer();
-    this.actor.connect('get-preferred-width',
-      Lang.bind(this, this._boxGetPreferredWidth));
-    this.actor.connect('get-preferred-height',
-      Lang.bind(this, this._boxGetPreferredHeight));
-    this.actor.connect('allocate', Lang.bind(this, this._boxAllocate));
+    super(sourceActor, 'sm-tooltip-box');
+    this.actor = new Clutter.Actor();
+    // this.actor.connect('get-preferred-width',
+    //     this._boxGetPreferredWidth).bind(this);
+    // this.actor.connect('get-preferred-height',
+    //     this._boxGetPreferredHeight.bind(this));
     this.actor.add_actor(this.box);
-  },
-  _boxGetPreferredWidth: function (actor, forHeight, alloc) {
-    print_debug('TipMenu _boxGetPreferredWidth()');
+  }
 
-    [alloc.min_size, alloc.natural_size] = this.box.get_preferred_width(forHeight);
-  },
-  _boxGetPreferredHeight: function (actor, forWidth, alloc) {
-    print_debug('TipMenu _boxGetPreferredHeight()');
-
-    [alloc.min_size, alloc.natural_size] = this.box.get_preferred_height(forWidth);
-  },
-  _boxAllocate: function (actor, box, flags) {
-    print_debug('TipMenu _boxAllocate()');
-
-    this.box.allocate(box, flags);
-  },
-  _shift: function () {
+  // _init: function (sourceActor) {
+  //
+  //   // PopupMenu.PopupMenuBase.prototype._init.call(this, sourceActor, 'sm-tooltip-box');
+  //   this.parent(sourceActor, 'sm-tooltip-box');
+  //   this.actor = new Shell.GenericContainer();
+  //   this.actor.connect('get-preferred-width',
+  //     Lang.bind(this, this._boxGetPreferredWidth));
+  //   this.actor.connect('get-preferred-height',
+  //     Lang.bind(this, this._boxGetPreferredHeight));
+  //   this.actor.connect('allocate', Lang.bind(this, this._boxAllocate));
+  //   this.actor.add_actor(this.box);
+  // },
+  // _boxGetPreferredWidth: function (actor, forHeight, alloc) {
+  //   print_debug('TipMenu _boxGetPreferredWidth()');
+  //
+  //   [alloc.min_size, alloc.natural_size] = this.box.get_preferred_width(forHeight);
+  // },
+  // _boxGetPreferredHeight: function (actor, forWidth, alloc) {
+  //   print_debug('TipMenu _boxGetPreferredHeight()');
+  //
+  //   [alloc.min_size, alloc.natural_size] = this.box.get_preferred_height(forWidth);
+  // },
+  // _boxAllocate: function (actor, box, flags) {
+  //   print_debug('TipMenu _boxAllocate()');
+  //
+  //   this.box.allocate(box, flags);
+  // },
+  _shift() {
     print_debug('TipMenu _shift()');
 
     // Probably old but works
@@ -456,8 +441,8 @@ const TipMenu = new Lang.Class({
       tipy = allocation.y1 - height; // If it is at the bottom, place the tooltip above instead of below
     }
     this.actor.set_position(tipx, tipy);
-  },
-  open: function (animate) {
+  }
+  open(animate) {
     print_debug('TipMenu open()');
 
     if (this.isOpen) {
@@ -469,32 +454,30 @@ const TipMenu = new Lang.Class({
     this._shift();
     this.actor.raise_top();
     this.emit('open-state-changed', true);
-  },
-  close: function (animate) {
+  }
+  close(animate) {
     print_debug('TipMenu close()');
 
     this.isOpen = false;
     this.actor.hide();
     this.emit('open-state-changed', false);
   }
-});
+};
 
-const TipBox = new Lang.Class({
-  Name: 'PingMonitor.TipBox',
+const TipBox = class PingMonitor_TipBox {
+  constructor() {
+    print_debug('TipBox constructor()');
 
-  show_tooltip: true, // show mouseover tooltip
-
-  _init: function () {
-    print_debug('TipBox _init()');
-
-    this.actor = new St.BoxLayout({reactive: true}); // this is visualized
+    this.show_tooltip = true; // show mouseover tooltip
+    this.actor = new St.BoxLayout({reactive: true});
     this.actor._delegate = this;
     this.set_tip(new TipMenu(this.actor));
     this.in_to = this.out_to = 0;
-    this.actor.connect('enter-event', Lang.bind(this, this.on_enter));
-    this.actor.connect('leave-event', Lang.bind(this, this.on_leave));
-  },
-  set_tip: function (tipmenu) {
+    this.actor.connect('enter-event', this.on_enter.bind(this));
+    this.actor.connect('leave-event', this.on_leave.bind(this));
+  }
+
+  set_tip(tipmenu) {
     print_debug('TipBox set_tip()');
 
     if (this.tipmenu) {
@@ -505,8 +488,8 @@ const TipBox = new Lang.Class({
       Main.uiGroup.add_actor(this.tipmenu.actor);
       this.hide_tip();
     }
-  },
-  show_tip: function () {
+  }
+  show_tip() {
     print_debug('TipBox show_tip()');
 
     if (!this.tipmenu) {
@@ -517,8 +500,8 @@ const TipBox = new Lang.Class({
       Mainloop.source_remove(this.in_to);
       this.in_to = 0;
     }
-  },
-  hide_tip: function () {
+  }
+  hide_tip() {
     print_debug('TipBox hide_tip()');
 
     if (!this.tipmenu) {
@@ -533,8 +516,8 @@ const TipBox = new Lang.Class({
       Mainloop.source_remove(this.in_to);
       this.in_to = 0;
     }
-  },
-  on_enter: function () {
+  }
+  on_enter() {
     print_debug('TipBox on_enter()');
 
     let show_tooltip = this.show_tooltip;
@@ -549,11 +532,10 @@ const TipBox = new Lang.Class({
     }
     if (!this.in_to) {
       this.in_to = Mainloop.timeout_add(500,
-        Lang.bind(this,
-          this.show_tip));
+        this.show_tip.bind(this));
     }
-  },
-  on_leave: function () {
+  }
+  on_leave() {
     print_debug('TipBox on_leave()');
 
     if (this.in_to) {
@@ -562,11 +544,10 @@ const TipBox = new Lang.Class({
     }
     if (!this.out_to) {
       this.out_to = Mainloop.timeout_add(500,
-        Lang.bind(this,
-          this.hide_tip));
+        this.hide_tip.bind(this));
     }
-  },
-  destroy: function () {
+  }
+  destroy() {
     print_debug('TipBox destroy()');
 
     if (this.in_to) {
@@ -580,41 +561,39 @@ const TipBox = new Lang.Class({
     }
 
     this.actor.destroy();
-  },
-});
+  }
+};
 
-const ElementBase = new Lang.Class({
-  Name: 'PingMonitor.ElementBase',
-  Extends: TipBox,
+const ElementBase = class PingMonitor_ElementBase extends TipBox {
+  constructor(properties) {
+    super();
+    print_debug('ElementBase constructor()');
 
-  elt: '',
-  name: '',
-  color_name: [],
-  text_items: [],
-  menu_items: [],
-  menu_visible: true,
-  color: '#ff0000',
-  isRunning: false,
+    this.elt = '';
+    this.tag = '';
+    this.name = '';
+    this.show_name = false;
+    this.color_name = [];
+    this.text_items = [];
+    this.menu_items = [];
+    this.menu_visible = true;
+    this.color = '#ff0000';
+    this.isRunning = false;
+    this.refresh_interval = 5000; // milliseconds between ping
+    this.visible = true; // show in the system tray
+    this.timeout = undefined;
 
-  refresh_interval: 5000, // milliseconds between ping
-  visible: true, // show in the system tray
-  timeout: undefined,
+    Object.assign(this, properties);
 
-  _init: function () {
-    print_debug('ElementBase _init()');
-
-    this.parent(arguments);
     this.vals = [];
     this.tip_labels = [];
     this.tip_vals = [];
     this.tip_unit_labels = [];
 
     this.chart = new StatusSquare(IconSize, this);
-    Schema.connect('changed::background',
-      Lang.bind(this,
-        function () {
-          this.chart.actor.queue_repaint();
-        }));
+    Schema.connect('changed::background', () => {
+      this.chart.actor.queue_repaint();
+    });
 
     this.actor.visible = this.visible;//Schema.get_boolean(this.elt + '-display');
 
@@ -636,24 +615,25 @@ const ElementBase = new Lang.Class({
     this.menu_items = this.create_menu_items();
 
     this.chart.actor.queue_repaint();
-  },
-  add_timeout: function () {
+  }
+
+  add_timeout() {
     this.remove_timeout();
     print_debug('Add timeout: ' + this.tag);
     this.timeout = Mainloop.timeout_add(
       this.interval,
-      Lang.bind(this, this.update)
+      this.update.bind(this)
     );
-  },
-  remove_timeout: function () {
+  }
+  remove_timeout() {
     print_debug('Remove (try) timeout: ' + this.tag);
     if (this.timeout !== undefined) {
       print_debug('Remove timeout: ' + this.tag);
       Mainloop.source_remove(this.timeout);
       this.timeout = undefined;
     }
-  },
-  tip_format: function () {
+  }
+  tip_format() {
     print_debug('ElementBase tip_format()');
 
     for (let i = 0; i < this.color_name.length; i++) {
@@ -667,8 +647,8 @@ const ElementBase = new Lang.Class({
       // tipline.actor.add(this.tip_unit_labels[i]);
       this.tip_vals[i] = 0;
     }
-  },
-  update: function () {
+  }
+  update() {
     print_debug('ElementBase update()');
 
     // Remove timeout from Mainloop.
@@ -682,20 +662,20 @@ const ElementBase = new Lang.Class({
     this.refresh();
 
     return true;
-  },
-  updateDrawing: function () {
+  }
+  updateDrawing() {
     this._apply();
     this.chart.update(this.color, true);
     for (let i = 0; i < this.tip_vals.length; i++) {
       this.tip_labels[i].text = this.tip_vals[i].toString();
     }
-  },
-  reset_style: function () {
+  }
+  reset_style() {
     print_debug('ElementBase reset_style()');
 
     this.text_items[0].set_style('color: rgba(255, 255, 255, 1)');
-  },
-  threshold: function () {
+  }
+  threshold() {
     print_debug('ElementBase threshold()');
 
     if (Schema.get_int('thermal-threshold')) {
@@ -705,67 +685,49 @@ const ElementBase = new Lang.Class({
         this.text_items[0].set_style('color: rgba(255, 255, 255, 1)');
       }
     }
-  },
-  destroy: function () {
+  }
+  destroy() {
     print_debug('ElementBase destroy()');
 
     TipBox.prototype.destroy.call(this);
     this.remove_timeout();
   }
-});
+};
 
-const Ping = new Lang.Class({
-  Name: 'PingMonitor.Ping',
-  Extends: ElementBase,
-
-  elt: 'ping', // element type
-  id: 0, // id
-  tag: '', // tag
-  name: '', // name
-  address: '8.8.8.8', // ip address
-  ping_count: 2, // number of ping per refresh interval
-  ping_interval: 0.5, // next ping after x seconds
-  ping_deadline: 3, // max seconds for ping
-  // refresh_interval: 5000, // milliseconds between ping
-  active: true, // run ping
-  // visible: true, // show in the system tray
-  show_name: true, // show name in the system tray
-  show_address: true, // show address in the system tray
-  // show_tooltip: true, // show mouseover tooltip
-  warning_threshold: 20, // if ping ms higher -> orange
-  ping_message: '', // the last ping result
-
-  color_name: ['used'],
-
-  _init: function (id, tag, name, address, ping_count, ping_interval,
-                   ping_deadline, refresh_interval, active, visible,
-                   show_name, show_address, show_tooltip, warning_threshold) {
-    print_debug('Ping _init()');
-
-    this.id = id;
-    this.tag = tag;
+const Ping = class PingMonitor_Ping extends ElementBase {
+  constructor(id, tag, name, address, ping_count, ping_interval,
+              ping_deadline, refresh_interval, active, visible,
+              show_name, show_address, show_tooltip, warning_threshold) {
     if (show_address) {
-      this.name = name + '\n' + address;
-    } else {
-      this.name = name;
+      name = name + '\n' + address;
     }
+    super({
+      elt: 'ping',
+      tag: tag,
+      name: name,
+      show_name: show_name,
+      visible: visible,
+      refresh_interval: refresh_interval,
+      color_name: ['used'],
+    });
+
+    print_debug('Ping constructor()');
+
+    this.ping_message = ''; // the last ping result
+    this.id = id;
     this.address = address;
     this.ping_count = ping_count;
     this.ping_interval = ping_interval;
     this.ping_deadline = ping_deadline;
-    this.refresh_interval = refresh_interval;
     this.active = active;
-    this.visible = visible;
-    this.show_name = show_name;
     this.show_address = show_address;
     this.show_tooltip = show_tooltip;
     this.warning_threshold = warning_threshold;
-    this.parent();
     this.tip_format();
     this.update();
-  },
+  }
 
-  _pingReadStdout: function () {
+  _pingReadStdout() {
     this._pingDataStdout.fill_async(-1, GLib.PRIORITY_DEFAULT, null, Lang.bind(this, function (stream, result) {
       if (stream.fill_finish(result) == 0) {
         try {
@@ -831,9 +793,9 @@ const Ping = new Lang.Class({
       stream.set_buffer_size(2 * stream.get_buffer_size());
       this._pingReadStdout();
     }));
-  },
+  }
 
-  _pingReadStderr: function () {
+  _pingReadStderr() {
     this._pingDataStderr.fill_async(-1, GLib.PRIORITY_DEFAULT, null, Lang.bind(this, function (stream, result) {
       if (stream.fill_finish(result) == 0) {
         try {
@@ -866,9 +828,9 @@ const Ping = new Lang.Class({
       stream.set_buffer_size(2 * stream.get_buffer_size());
       this._pingReadStderr();
     }));
-  },
+  }
 
-  refresh: function () {
+  refresh() {
     print_debug('Ping refresh()');
 
     // Run asynchronously, to avoid shell freeze
@@ -912,9 +874,9 @@ const Ping = new Lang.Class({
       print_info(e.toString());
       // Deal with the error
     }
-  },
+  }
 
-  _endProcess: function () {
+  _endProcess() {
     print_debug('Ping _endProcess()');
 
     if (this._process_stream) {
@@ -925,15 +887,15 @@ const Ping = new Lang.Class({
       this._process_error.close(null);
       this._process_error = null;
     }
-  },
-  _apply: function () {
+  }
+  _apply() {
     print_debug('Ping _apply()');
 
     this.menu_items[0].text = this.ping_message;
     // this.menu_items[1].text = '2';
     this.tip_vals[0] = this.ping_message;
-  },
-  create_text_items: function () {
+  }
+  create_text_items() {
     print_debug('Ping create_text_items()');
 
     return [
@@ -948,8 +910,8 @@ const Ping = new Lang.Class({
         y_align: Clutter.ActorAlign.CENTER
       })
     ];
-  },
-  create_menu_items: function () {
+  }
+  create_menu_items() {
     print_debug('Ping create_menu_items()');
 
     return [
@@ -971,14 +933,11 @@ const Ping = new Lang.Class({
       //     style_class: Style.get('sm-label')})
     ];
   }
-});
+};
 
-const Icon = new Lang.Class({
-  Name: 'PingMonitor.Icon',
-
-  _init: function () {
-    print_debug('Icon _init()');
-
+const Icon = class PingMonitor_Icon {
+  constructor() {
+    print_debug('Icon constructor()');
     this.actor = new St.Icon({
       icon_name: 'system-run-symbolic',
       style_class: 'system-status-icon'
@@ -993,7 +952,7 @@ const Icon = new Lang.Class({
         })
     );
   }
-});
+};
 
 function read_from_file(path) {
   print_info('read_from_file()');
@@ -1084,7 +1043,7 @@ function build_ping_applet() {
   if (!(smDepsGtop)) {
     Main.__sm = {
       smdialog: new smDialog()
-    }
+    };
 
     let dialog_timeout = Mainloop.timeout_add_seconds(
       1,
@@ -1202,7 +1161,7 @@ function build_ping_applet() {
         // build_ping_applet();
       }));
   }
-};
+}
 
 function destroy_ping_applet() {
   if (Style) {
@@ -1221,7 +1180,7 @@ function destroy_ping_applet() {
     Main.__sm.tray.actor.destroy();
   }
   Main.__sm = null;
-};
+}
 
 var init = function () {
   print_info('applet init from ' + extension.path);
