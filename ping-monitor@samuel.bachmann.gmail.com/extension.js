@@ -25,6 +25,8 @@ const libnm_glib = imports.gi.GIRepository.Repository.get_default().is_registere
 let debugOutput = false;
 let smDepsGtop = true;
 
+let box1;
+
 const Config = imports.misc.config;
 const Clutter = imports.gi.Clutter;
 const GLib = imports.gi.GLib;
@@ -578,10 +580,16 @@ const ElementBase = class PingMonitor_ElementBase extends TipBox {
     this.menu_items = [];
     this.menu_visible = true;
     this.color = '#ff0000';
-    this.isRunning = false;
     this.refresh_interval = 5000; // milliseconds between ping
     this.visible = true; // show in the system tray
     this.timeout = undefined;
+
+    this._pingStdout = null;
+    this._pingDataStdout = null;
+    this._pingStderr = null;
+    this._pingDataStderr = null;
+
+    this._prepareToDestroy = false;
 
     Object.assign(this, properties);
 
@@ -620,10 +628,12 @@ const ElementBase = class PingMonitor_ElementBase extends TipBox {
   add_timeout() {
     this.remove_timeout();
     print_debug('Add timeout: ' + this.tag);
-    this.timeout = Mainloop.timeout_add(
-      this.interval,
-      this.update.bind(this)
-    );
+    if (!this._prepareToDestroy) {
+      this.timeout = Mainloop.timeout_add(
+        this.interval,
+        this.update.bind(this)
+      );
+    }
   }
   remove_timeout() {
     print_debug('Remove (try) timeout: ' + this.tag);
@@ -689,8 +699,20 @@ const ElementBase = class PingMonitor_ElementBase extends TipBox {
   destroy() {
     print_debug('ElementBase destroy()');
 
-    TipBox.prototype.destroy.call(this);
     this.remove_timeout();
+    TipBox.prototype.destroy.call(this);
+  }
+  stop() {
+    this._prepareToDestroy = true;
+    this.remove_timeout();
+  }
+  isRunning() {
+    return (
+      this._pingStdout != null ||
+      this._pingDataStdout != null ||
+      this._pingStderr != null ||
+      this._pingDataStderr != null
+    );
   }
 };
 
@@ -1093,12 +1115,12 @@ function build_ping_applet() {
 
     // The spacing adds a distance between the graphs/text on the top bar
     let spacing = '4'; // TODO '1' ?
-    let box = new St.BoxLayout({style: 'spacing: ' + spacing + 'px;'});
-    tray.actor.add_actor(box);
-    box.add_actor(Main.__sm.icon.actor);
-    // Add items to panel box
+    box1 = new St.BoxLayout({style: 'spacing: ' + spacing + 'px;'});
+    tray.actor.add_actor(box1);
+    box1.add_actor(Main.__sm.icon.actor);
+    // Add items to panel box1
     for (let elt in elts) {
-      box.add_actor(elts[elt].actor);
+      box1.add_actor(elts[elt].actor);
     }
 
     // Build Menu Info Box Table
@@ -1136,8 +1158,7 @@ function build_ping_applet() {
     // Reload config.
     item = new PopupMenu.PopupMenuItem(_('Reload config'));
     item.connect('activate', function () {
-      destroy_ping_applet();
-      build_ping_applet();
+      reload_async();
     });
     tray.menu.addMenuItem(item);
 
@@ -1163,16 +1184,84 @@ function build_ping_applet() {
   }
 }
 
-function destroy_ping_applet() {
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+async function reload_async() {
+  print_info('Reload ping applet async...');
+
+  // Stop creating new timeouts.
+  for (let eltName in Main.__sm.elts) {
+    Main.__sm.elts[eltName].stop();
+  }
+
+  // Wait for running async tasks.
+  for (let eltName in Main.__sm.elts) {
+    while (Main.__sm.elts[eltName].isRunning()) {
+      print_info('still running');
+      await sleep(10);
+    }
+  }
+
+  // Remove from box.
+  for (let eltName in Main.__sm.elts) {
+    box1.remove_actor(Main.__sm.elts[eltName].actor);
+  }
+  // Destroy elements.
+  for (let eltName in Main.__sm.elts) {
+    Main.__sm.elts[eltName].destroy();
+  }
+  Main.__sm.elts = [];
+
+  // Items to Monitor
+  let isFileOk = false;
+  let path = Schema.get_string('ping-config-path');
+  if (path == '') {
+    path = GLib.getenv('HOME') + '/.config/ping-monitor.conf';
+    Schema.set_string('ping-config-path', path);
+  }
+  isFileOk = read_from_file(path);
+  Schema.set_boolean('icon-display', !isFileOk);
+
+  // Add elements to box.
+  let elts = Main.__sm.elts;
+  for (let elt in elts) {
+    box1.add_actor(elts[elt].actor);
+  }
+
+  build_menu_info();
+
+  print_info('Reloaded.');
+}
+
+async function destroy_async() {
+  print_info('Destroy ping applet async...');
+
+  // Stop creating new timeouts.
+  for (let eltName in Main.__sm.elts) {
+    Main.__sm.elts[eltName].stop();
+  }
+
+  // Wait for running async tasks.
+  for (let eltName in Main.__sm.elts) {
+    while (Main.__sm.elts[eltName].isRunning()) {
+      print_info('still running');
+      await sleep(10);
+    }
+  }
+
   if (Style) {
     Style = null;
   }
   Schema.run_dispose();
 
+  // Destroy elements.
   for (let eltName in Main.__sm.elts) {
     Main.__sm.elts[eltName].destroy();
   }
 
+  // Destroy main.
   if (!Compat.versionCompare(shell_Version, '3.5')) {
     Main.__sm.tray.destroy();
     StatusArea.systemMonitor = null;
@@ -1180,6 +1269,33 @@ function destroy_ping_applet() {
     Main.__sm.tray.actor.destroy();
   }
   Main.__sm = null;
+
+  print_info('Destroyed.');
+}
+
+function destroy_ping_applet() {
+  destroy_async();
+
+  // for (let eltName in Main.__sm.elts) {
+  //   Main.__sm.elts[eltName].stop();
+  // }
+  //
+  // if (Style) {
+  //   Style = null;
+  // }
+  // Schema.run_dispose();
+  //
+  // for (let eltName in Main.__sm.elts) {
+  //   Main.__sm.elts[eltName].destroy();
+  // }
+  //
+  // if (!Compat.versionCompare(shell_Version, '3.5')) {
+  //   Main.__sm.tray.destroy();
+  //   StatusArea.systemMonitor = null;
+  // } else {
+  //   Main.__sm.tray.actor.destroy();
+  // }
+  // Main.__sm = null;
 }
 
 var init = function () {
