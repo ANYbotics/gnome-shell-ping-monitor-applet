@@ -26,6 +26,7 @@ let debugOutput = false;
 let smDepsGtop = true;
 
 let box1;
+let tray;
 
 const Config = imports.misc.config;
 const Clutter = imports.gi.Clutter;
@@ -1098,7 +1099,7 @@ function build_ping_applet() {
     isFileOk = read_from_file(path);
     Schema.set_boolean('icon-display', !isFileOk);
 
-    let tray = Main.__sm.tray;
+    tray = Main.__sm.tray;
     let elts = Main.__sm.elts;
 
     Schema.connect('changed::background', Lang.bind(
@@ -1331,7 +1332,7 @@ var disable = function () {
   // }
   // Schema.run_dispose();
 
-  destroy_ping_applet();
+  tray.destroy();
 
   print_info('applet disabled');
 };
