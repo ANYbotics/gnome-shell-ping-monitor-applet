@@ -27,24 +27,24 @@ let smDepsGtop = true;
 
 let box1;
 
-const Config = imports.misc.config;
-const Clutter = imports.gi.Clutter;
-const GLib = imports.gi.GLib;
-
-const Gio = imports.gi.Gio;
-const Lang = imports.lang;
-const Shell = imports.gi.Shell;
-const St = imports.gi.St;
-const Power = imports.ui.status.power;
+let Config = imports.misc.config;
+let Clutter = imports.gi.Clutter;
+let GLib = imports.gi.GLib;
+let GObject = imports.gi.GObject;
+let Gio = imports.gi.Gio;
+let Lang = imports.lang;
+let Shell = imports.gi.Shell;
+let St = imports.gi.St;
+let Power = imports.ui.status.power;
 // const System = imports.system;
-const ModalDialog = imports.ui.modalDialog;
+let ModalDialog = imports.ui.modalDialog;
 
-const ExtensionSystem = imports.ui.extensionSystem;
-const ExtensionUtils = imports.misc.extensionUtils;
+let ExtensionSystem = imports.ui.extensionSystem;
+let ExtensionUtils = imports.misc.extensionUtils;
 
-const Me = ExtensionUtils.getCurrentExtension();
-const Convenience = Me.imports.convenience;
-const Compat = Me.imports.compat;
+let Me = ExtensionUtils.getCurrentExtension();
+let Convenience = Me.imports.convenience;
+let Compat = Me.imports.compat;
 
 let Background, GTop, IconSize, Locale, Schema, StatusArea, Style, menu_timeout;
 
@@ -76,6 +76,20 @@ libgtop and gir bindings\n\
 let extension = imports.misc.extensionUtils.getCurrentExtension();
 let metadata = extension.metadata;
 let shell_Version = Config.PACKAGE_VERSION;
+
+Clutter.Actor.prototype.raise_top = function raise_top() {
+  const parent = this.get_parent();
+  if (!parent)
+    return;
+  parent.set_child_above_sibling(this, null);
+}
+Clutter.Actor.prototype.reparent = function reparent(newParent) {
+  const parent = this.get_parent();
+  if (parent) {
+    parent.remove_child(this);
+  }
+  newParent.add_child(this);
+}
 
 function print_info(str) {
   log('[Ping monitor INFO] ' + str);
@@ -122,7 +136,7 @@ function build_menu_info() {
 
   let menu_info_box_table = new St.Widget({
     style: 'padding: 10px 0px 10px 0px; spacing-rows: 10px; spacing-columns: 15px;',
-    layout_manager: new Clutter.TableLayout()
+    layout_manager: new Clutter.GridLayout({ orientation: Clutter.Orientation.VERTICAL })
   });
   let menu_info_box_table_layout = menu_info_box_table.layout_manager;
 
@@ -134,17 +148,19 @@ function build_menu_info() {
     }
 
     // Add item name to table
-    menu_info_box_table_layout.pack(
+    menu_info_box_table_layout.attach(
       new St.Label({
         text: elts[elt].name,
-        style_class: Style.get('sm-title')
-      }), 0, row_index);
+        style_class: Style.get('sm-title'),
+        x_align: Clutter.ActorAlign.START,
+        y_align: Clutter.ActorAlign.CENTER
+      }), 0, row_index, 1, 1);
 
     // Add item data to table
     let col_index = 1;
     for (let item in elts[elt].menu_items) {
-      menu_info_box_table_layout.pack(
-        elts[elt].menu_items[item], col_index, row_index);
+      menu_info_box_table_layout.attach(
+        elts[elt].menu_items[item], col_index, row_index, 1, 1);
 
       col_index++;
     }
@@ -363,17 +379,29 @@ const StatusSquare = class PingMonitor_StatusSquare {
   }
 };
 
-const TipItem = class PingMonitor_TipItem extends PopupMenu.PopupBaseMenuItem {
-  constructor() {
-    super();
+let TipItem = null;
+if (shell_Version < '3.36') {
+  TipItem = class SystemMonitor_TipItem extends PopupMenu.PopupBaseMenuItem {
+    constructor() {
+      super();
 
-    print_debug('TipItem constructor()');
-
-    // PopupMenu.PopupBaseMenuItem.prototype._init.call(this);
-    this.actor.remove_style_class_name('popup-menu-item');
-    this.actor.add_style_class_name('sm-tooltip-item');
+      // PopupMenu.PopupBaseMenuItem.prototype._init.call(this);
+      this.actor.remove_style_class_name('popup-menu-item');
+      this.actor.add_style_class_name('sm-tooltip-item');
+    }
   }
-};
+} else {
+  TipItem = GObject.registerClass({GTypeName:'TipItem'},
+      class TipItem extends PopupMenu.PopupBaseMenuItem {
+        _init() {
+          super._init();
+
+          // PopupMenu.PopupBaseMenuItem.prototype._init.call(this);
+          this.actor.remove_style_class_name('popup-menu-item');
+          this.actor.add_style_class_name('sm-tooltip-item');
+        }
+      });
+}
 
 /**
  * Tooltip when hovering
@@ -677,7 +705,9 @@ const ElementBase = class PingMonitor_ElementBase extends TipBox {
     this._apply();
     this.chart.update(this.color, true);
     for (let i = 0; i < this.tip_vals.length; i++) {
-      this.tip_labels[i].text = this.tip_vals[i].toString();
+      if (this.tip_labels[i]) {
+        this.tip_labels[i].text = this.tip_vals[i].toString();
+      }
     }
   }
   reset_style() {
@@ -784,23 +814,37 @@ const Ping = class PingMonitor_Ping extends ElementBase {
               print_debug('mdev: ' + times[4]);
 
               if (loss[1] != 0 && loss[1] != 100) {
-                this.color = Schema.get_string('ping-loss-color');
+                if (!this._prepareToDestroy) {
+                  this.color = Schema.get_string('ping-loss-color');
+                }
               } else if (loss[1] == 100) {
-                this.color = Schema.get_string('ping-bad-color');
+                if (!this._prepareToDestroy) {
+                  this.color = Schema.get_string('ping-bad-color');
+                }
               } else if (times[3] > this.warning_threshold) {
-                this.color = Schema.get_string('ping-warning-color');
+                if (!this._prepareToDestroy) {
+                  this.color = Schema.get_string('ping-warning-color');
+                }
               } else {
-                this.color = Schema.get_string('ping-good-color');
+                if (!this._prepareToDestroy) {
+                  this.color = Schema.get_string('ping-good-color');
+                }
               }
             } else {
-              this.color = Schema.get_string('ping-bad-color');
+              if (!this._prepareToDestroy) {
+                this.color = Schema.get_string('ping-bad-color');
+              }
             }
-            this.updateDrawing();
+            if (!this._prepareToDestroy) {
+              this.updateDrawing();
+            }
           }
         } catch (e) {
           print_info(e.toString());
-          this.color = Schema.get_string('ping-bad-color');
-          this.updateDrawing();
+          if (!this._prepareToDestroy) {
+            this.color = Schema.get_string('ping-bad-color');
+            this.updateDrawing();
+          }
         }
         this._pingStdout.close(null);
         this._pingStdout = null;
@@ -830,14 +874,18 @@ const Ping = class PingMonitor_Ping extends ElementBase {
             this.ping_message = this._pingOutputErr;
             print_debug('Ping error: ' + this.ping_message);
 
-            this.color = Schema.get_string('ping-bad-color');
+            if (!this._prepareToDestroy) {
+              this.color = Schema.get_string('ping-bad-color');
 
-            this.updateDrawing();
+              this.updateDrawing();
+            }
           }
         } catch (e) {
           print_info(e.toString());
-          this.color = Schema.get_string('ping-bad-color');
-          this.updateDrawing();
+          if (!this._prepareToDestroy) {
+            this.color = Schema.get_string('ping-bad-color');
+            this.updateDrawing();
+          }
         }
         this._pingStderr.close(null);
         this._pingStderr = null;
@@ -1116,7 +1164,11 @@ function build_ping_applet() {
     // The spacing adds a distance between the graphs/text on the top bar
     let spacing = '4'; // TODO '1' ?
     box1 = new St.BoxLayout({style: 'spacing: ' + spacing + 'px;'});
-    tray.actor.add_actor(box1);
+    if (shell_Version < '3.36') {
+      tray.actor.add_actor(box1);
+    } else {
+      tray.add_actor(box1);
+    }
     box1.add_actor(Main.__sm.icon.actor);
     // Add items to panel box1
     for (let elt in elts) {
@@ -1164,8 +1216,16 @@ function build_ping_applet() {
 
     // Preferences.
     item = new PopupMenu.PopupMenuItem(_('Preferences...'));
-    item.connect('activate', function () {
-      Util.spawn(["gnome-shell-extension-prefs", "ping-monitor@samuel.bachmann.gmail.com"]);
+    item.connect('activate', () => {
+      if (typeof ExtensionUtils.openPrefs === 'function') {
+        ExtensionUtils.openPrefs();
+      } else if (_gsmPrefs.get_state() === _gsmPrefs.SHELL_APP_STATE_RUNNING) {
+        _gsmPrefs.activate();
+      } else {
+        let info = _gsmPrefs.get_app_info();
+        let timestamp = global.display.get_current_time_roundtrip();
+        info.launch_uris([metadata.uuid], global.create_app_launch_context(timestamp, -1));
+      }
     });
     tray.menu.addMenuItem(item);
 
@@ -1235,69 +1295,6 @@ async function reload_async() {
   print_info('Reloaded.');
 }
 
-async function destroy_async() {
-  print_info('Destroy ping applet async...');
-
-  // Stop creating new timeouts.
-  for (let eltName in Main.__sm.elts) {
-    Main.__sm.elts[eltName].stop();
-  }
-
-  // Wait for running async tasks.
-  for (let eltName in Main.__sm.elts) {
-    while (Main.__sm.elts[eltName].isRunning()) {
-      print_info('still running');
-      await sleep(10);
-    }
-  }
-
-  if (Style) {
-    Style = null;
-  }
-  Schema.run_dispose();
-
-  // Destroy elements.
-  for (let eltName in Main.__sm.elts) {
-    Main.__sm.elts[eltName].destroy();
-  }
-
-  // Destroy main.
-  if (!Compat.versionCompare(shell_Version, '3.5')) {
-    Main.__sm.tray.destroy();
-    StatusArea.systemMonitor = null;
-  } else {
-    Main.__sm.tray.actor.destroy();
-  }
-  Main.__sm = null;
-
-  print_info('Destroyed.');
-}
-
-function destroy_ping_applet() {
-  destroy_async();
-
-  // for (let eltName in Main.__sm.elts) {
-  //   Main.__sm.elts[eltName].stop();
-  // }
-  //
-  // if (Style) {
-  //   Style = null;
-  // }
-  // Schema.run_dispose();
-  //
-  // for (let eltName in Main.__sm.elts) {
-  //   Main.__sm.elts[eltName].destroy();
-  // }
-  //
-  // if (!Compat.versionCompare(shell_Version, '3.5')) {
-  //   Main.__sm.tray.destroy();
-  //   StatusArea.systemMonitor = null;
-  // } else {
-  //   Main.__sm.tray.actor.destroy();
-  // }
-  // Main.__sm = null;
-}
-
 var init = function () {
   print_info('applet init from ' + extension.path);
 
@@ -1326,12 +1323,25 @@ var enable = function () {
 var disable = function () {
   print_info('disable applet');
 
-  // if (Style) {
-  //     Style = null;
-  // }
-  // Schema.run_dispose();
+  // Stop creating new async tasks.
+  for (let eltName in Main.__sm.elts) {
+    Main.__sm.elts[eltName].stop();
+  }
 
-  destroy_ping_applet();
+  Schema.run_dispose();
+  // Remove from box.
+  for (let eltName in Main.__sm.elts) {
+    box1.remove_actor(Main.__sm.elts[eltName].actor);
+  }
+  for (let eltName in Main.__sm.elts) {
+    Main.__sm.elts[eltName].destroy();
+  }
+  if (shell_Version < '3.36') {
+    Main.__sm.tray.actor.destroy();
+  } else {
+    Main.__sm.tray.destroy();
+  }
+  Main.__sm = null;
 
   print_info('applet disabled');
 };
