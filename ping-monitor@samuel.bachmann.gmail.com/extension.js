@@ -23,36 +23,36 @@
 const libnm_glib = imports.gi.GIRepository.Repository.get_default().is_registered('NMClient', '1.0');
 
 let debugOutput = false;
-let smDepsGtop = true;
+let pingDepsGtop = true;
 
-let box1;
+let pingBox;
 
-let Config = imports.misc.config;
-let Clutter = imports.gi.Clutter;
-let GLib = imports.gi.GLib;
-let GObject = imports.gi.GObject;
-let Gio = imports.gi.Gio;
-let Lang = imports.lang;
-let Shell = imports.gi.Shell;
-let St = imports.gi.St;
-let Power = imports.ui.status.power;
+const Config = imports.misc.config;
+const Clutter = imports.gi.Clutter;
+const GLib = imports.gi.GLib;
+const GObject = imports.gi.GObject;
+const Gio = imports.gi.Gio;
+const Lang = imports.lang;
+const Shell = imports.gi.Shell;
+const St = imports.gi.St;
+const Power = imports.ui.status.power;
 // const System = imports.system;
-let ModalDialog = imports.ui.modalDialog;
+const ModalDialog = imports.ui.modalDialog;
 
-let ExtensionSystem = imports.ui.extensionSystem;
-let ExtensionUtils = imports.misc.extensionUtils;
+const ExtensionSystem = imports.ui.extensionSystem;
+const ExtensionUtils = imports.misc.extensionUtils;
 
-let Me = ExtensionUtils.getCurrentExtension();
-let Convenience = Me.imports.convenience;
-let Compat = Me.imports.compat;
+const Me = ExtensionUtils.getCurrentExtension();
+const Convenience = Me.imports.convenience;
+const Compat = Me.imports.compat;
 
-let Background, GTop, IconSize, Locale, Schema, StatusArea, Style, menu_timeout;
+let PingBackground, PingGTop, PingIconSize, PingLocale, PingSchema, PingStatusArea, PingStyle, ping_menu_timeout;
 
 try {
-  GTop = imports.gi.GTop;
+  PingGTop = imports.gi.GTop;
 } catch (e) {
   log('[Ping monitor] catched error: ' + e);
-  smDepsGtop = false;
+  pingDepsGtop = false;
 }
 
 const Main = imports.ui.main;
@@ -121,8 +121,8 @@ function change_style() {
 function build_menu_info() {
   print_debug('build_menu_info()');
 
-  let elts = Main.__sm.elts;
-  let tray_menu = Main.__sm.tray.menu;
+  let elts = Main.__ping.elts;
+  let tray_menu = Main.__ping.tray.menu;
 
   if (tray_menu._getMenuItems().length &&
     typeof tray_menu._getMenuItems()[0].actor.get_last_child() !== 'undefined') {
@@ -151,7 +151,7 @@ function build_menu_info() {
     menu_info_box_table_layout.attach(
       new St.Label({
         text: elts[elt].name,
-        style_class: Style.get('sm-title'),
+        style_class: PingStyle.get('ping-title'),
         x_align: Clutter.ActorAlign.START,
         y_align: Clutter.ActorAlign.CENTER
       }), 0, row_index, 1, 1);
@@ -179,9 +179,9 @@ function change_menu() {
 
 let color_from_string = Compat.color_from_string;
 
-const smStyleManager = class PingMonitor_smStyleManager {
+const pingStyleManager = class PingMonitor_pingStyleManager {
   constructor() {
-    print_debug('smStyleManager constructor()');
+    print_debug('pingStyleManager constructor()');
 
     this._extension = '';
     this._iconsize = 1;
@@ -250,11 +250,11 @@ const smStyleManager = class PingMonitor_smStyleManager {
   }
 };
 
-const smDialog = class PingMonitor_smDialog extends ModalDialog.ModalDialog {
+const PingDialog = class PingMonitor_PingDialog extends ModalDialog.ModalDialog {
   constructor() {
     super({styleClass: 'prompt-dialog'});
 
-    print_debug('smDialog construct()');
+    print_debug('PingDialog construct()');
 
     let mainContentBox = new St.BoxLayout({style_class: 'prompt-dialog-main-layout',
       vertical: false});
@@ -303,7 +303,7 @@ const StatusSquare = class PingMonitor_StatusSquare {
     this._activityWidth = 4;
     this._isPingUpdate = false;
 
-    this.actor = new St.DrawingArea({style_class: Style.get('sm-chart'), reactive: false});
+    this.actor = new St.DrawingArea({style_class: PingStyle.get('ping-chart'), reactive: false});
     this.parentC = parent;
     this.actor.set_width(this._width);
     this.actor.set_height(this.height = height);
@@ -379,26 +379,26 @@ const StatusSquare = class PingMonitor_StatusSquare {
   }
 };
 
-let TipItem = null;
+let PingTipItem = null;
 if (shell_Version < '3.36') {
-  TipItem = class SystemMonitor_TipItem extends PopupMenu.PopupBaseMenuItem {
+  PingTipItem = class PingMonitor_PingTipItem extends PopupMenu.PopupBaseMenuItem {
     constructor() {
       super();
 
       // PopupMenu.PopupBaseMenuItem.prototype._init.call(this);
       this.actor.remove_style_class_name('popup-menu-item');
-      this.actor.add_style_class_name('sm-tooltip-item');
+      this.actor.add_style_class_name('ping-tooltip-item');
     }
   }
 } else {
-  TipItem = GObject.registerClass({GTypeName:'TipItem'},
-      class TipItem extends PopupMenu.PopupBaseMenuItem {
+  PingTipItem = GObject.registerClass({GTypeName:'PingTipItem'},
+      class PingTipItem extends PopupMenu.PopupBaseMenuItem {
         _init() {
           super._init();
 
           // PopupMenu.PopupBaseMenuItem.prototype._init.call(this);
           this.actor.remove_style_class_name('popup-menu-item');
-          this.actor.add_style_class_name('sm-tooltip-item');
+          this.actor.add_style_class_name('ping-tooltip-item');
         }
       });
 }
@@ -410,8 +410,8 @@ if (shell_Version < '3.36') {
 const TipMenu = class PingMonitor_TipMenu extends PopupMenu.PopupMenuBase {
   constructor(sourceActor) {
     print_debug('TipMenu constructor()');
-    // PopupMenu.PopupMenuBase.prototype._init.call(this, sourceActor, 'sm-tooltip-box');
-    super(sourceActor, 'sm-tooltip-box');
+    // PopupMenu.PopupMenuBase.prototype._init.call(this, sourceActor, 'ping-tooltip-box');
+    super(sourceActor, 'ping-tooltip-box');
     this.actor = new Clutter.Actor();
     // this.actor.connect('get-preferred-width',
     //     this._boxGetPreferredWidth).bind(this);
@@ -422,8 +422,8 @@ const TipMenu = class PingMonitor_TipMenu extends PopupMenu.PopupMenuBase {
 
   // _init: function (sourceActor) {
   //
-  //   // PopupMenu.PopupMenuBase.prototype._init.call(this, sourceActor, 'sm-tooltip-box');
-  //   this.parent(sourceActor, 'sm-tooltip-box');
+  //   // PopupMenu.PopupMenuBase.prototype._init.call(this, sourceActor, 'ping-tooltip-box');
+  //   this.parent(sourceActor, 'ping-tooltip-box');
   //   this.actor = new Shell.GenericContainer();
   //   this.actor.connect('get-preferred-width',
   //     Lang.bind(this, this._boxGetPreferredWidth));
@@ -626,18 +626,18 @@ const ElementBase = class PingMonitor_ElementBase extends TipBox {
     this.tip_vals = [];
     this.tip_unit_labels = [];
 
-    this.chart = new StatusSquare(IconSize, this);
-    Schema.connect('changed::background', () => {
+    this.chart = new StatusSquare(PingIconSize, this);
+    PingSchema.connect('changed::background', () => {
       this.chart.actor.queue_repaint();
     });
 
-    this.actor.visible = this.visible;//Schema.get_boolean(this.elt + '-display');
+    this.actor.visible = this.visible;//PingSchema.get_boolean(this.elt + '-display');
 
     this.interval = this.refresh_interval; // milliseconds
     // Add the timeout for the first time.
     this.add_timeout();
 
-    this.label = new St.Label({text: this.name, style_class: Style.get('sm-status-label')});
+    this.label = new St.Label({text: this.name, style_class: PingStyle.get('ping-status-label')});
     change_text.call(this);
 
     this.menu_visible = true;
@@ -675,7 +675,7 @@ const ElementBase = class PingMonitor_ElementBase extends TipBox {
     print_debug('ElementBase tip_format()');
 
     for (let i = 0; i < this.color_name.length; i++) {
-      let tipline = new TipItem();
+      let tipline = new PingTipItem();
       this.tipmenu.addMenuItem(tipline);
       // tipline.actor.add(new St.Label({text: _(this.color_name[i])}));
       this.tip_labels[i] = new St.Label({text: ''});
@@ -718,7 +718,7 @@ const ElementBase = class PingMonitor_ElementBase extends TipBox {
   threshold() {
     print_debug('ElementBase threshold()');
 
-    if (Schema.get_int('thermal-threshold')) {
+    if (PingSchema.get_int('thermal-threshold')) {
       if (this.temp_over_threshold) {
         this.text_items[0].set_style('color: rgba(255, 0, 0, 1)');
       } else {
@@ -815,24 +815,24 @@ const Ping = class PingMonitor_Ping extends ElementBase {
 
               if (loss[1] != 0 && loss[1] != 100) {
                 if (!this._prepareToDestroy) {
-                  this.color = Schema.get_string('ping-loss-color');
+                  this.color = PingSchema.get_string('ping-loss-color');
                 }
               } else if (loss[1] == 100) {
                 if (!this._prepareToDestroy) {
-                  this.color = Schema.get_string('ping-bad-color');
+                  this.color = PingSchema.get_string('ping-bad-color');
                 }
               } else if (times[3] > this.warning_threshold) {
                 if (!this._prepareToDestroy) {
-                  this.color = Schema.get_string('ping-warning-color');
+                  this.color = PingSchema.get_string('ping-warning-color');
                 }
               } else {
                 if (!this._prepareToDestroy) {
-                  this.color = Schema.get_string('ping-good-color');
+                  this.color = PingSchema.get_string('ping-good-color');
                 }
               }
             } else {
               if (!this._prepareToDestroy) {
-                this.color = Schema.get_string('ping-bad-color');
+                this.color = PingSchema.get_string('ping-bad-color');
               }
             }
             if (!this._prepareToDestroy) {
@@ -842,7 +842,7 @@ const Ping = class PingMonitor_Ping extends ElementBase {
         } catch (e) {
           print_info(e.toString());
           if (!this._prepareToDestroy) {
-            this.color = Schema.get_string('ping-bad-color');
+            this.color = PingSchema.get_string('ping-bad-color');
             this.updateDrawing();
           }
         }
@@ -875,7 +875,7 @@ const Ping = class PingMonitor_Ping extends ElementBase {
             print_debug('Ping error: ' + this.ping_message);
 
             if (!this._prepareToDestroy) {
-              this.color = Schema.get_string('ping-bad-color');
+              this.color = PingSchema.get_string('ping-bad-color');
 
               this.updateDrawing();
             }
@@ -883,7 +883,7 @@ const Ping = class PingMonitor_Ping extends ElementBase {
         } catch (e) {
           print_info(e.toString());
           if (!this._prepareToDestroy) {
-            this.color = Schema.get_string('ping-bad-color');
+            this.color = PingSchema.get_string('ping-bad-color');
             this.updateDrawing();
           }
         }
@@ -971,12 +971,12 @@ const Ping = class PingMonitor_Ping extends ElementBase {
     return [
       new St.Label({
         text: '',
-        style_class: Style.get('sm-status-value'),
+        style_class: PingStyle.get('ping-status-value'),
         y_align: Clutter.ActorAlign.CENTER
       }),
       new St.Label({
         text: '%',
-        style_class: Style.get('sm-perc-label'),
+        style_class: PingStyle.get('ping-perc-label'),
         y_align: Clutter.ActorAlign.CENTER
       })
     ];
@@ -987,20 +987,20 @@ const Ping = class PingMonitor_Ping extends ElementBase {
     return [
       new St.Label({
         text: '',
-        style_class: Style.get('sm-value-left')
+        style_class: PingStyle.get('ping-value-left')
       }),
       // new St.Label({
       //     text: '',
-      //     style_class: Style.get('sm-label')}),
+      //     style_class: PingStyle.get('ping-label')}),
       // new St.Label({
       //     text: '',
-      //     style_class: Style.get('sm-label')}),
+      //     style_class: PingStyle.get('ping-label')}),
       // new St.Label({
       //     text: '',
-      //     style_class: Style.get('sm-value')}),
+      //     style_class: PingStyle.get('ping-value')}),
       // new St.Label({
       //     text: '',
-      //     style_class: Style.get('sm-label')})
+      //     style_class: PingStyle.get('ping-label')})
     ];
   }
 };
@@ -1012,13 +1012,13 @@ const Icon = class PingMonitor_Icon {
       icon_name: 'system-run-symbolic',
       style_class: 'system-status-icon'
     });
-    this.actor.visible = Schema.get_boolean('icon-display');
-    Schema.connect(
+    this.actor.visible = PingSchema.get_boolean('icon-display');
+    PingSchema.connect(
       'changed::icon-display',
       Lang.bind(this,
         function () {
           print_debug('changed icon-display');
-          this.actor.visible = Schema.get_boolean('icon-display');
+          this.actor.visible = PingSchema.get_boolean('icon-display');
         })
     );
   }
@@ -1074,7 +1074,7 @@ function read_from_file(path) {
           // ping_deadline, refresh_interval, active, visible,
           // show_name, show_tooltip, warning_threshold
 
-          Main.__sm.elts.push(new Ping(
+          Main.__ping.elts.push(new Ping(
             i,
             tag,
             name,
@@ -1105,32 +1105,32 @@ function read_from_file(path) {
 }
 
 function build_ping_applet() {
-  Schema = Convenience.getSettings();
-  Style = new smStyleManager();
+  PingSchema = Convenience.getSettings();
+  PingStyle = new pingStyleManager();
 
-  Background = color_from_string(Schema.get_string('background'));
+  PingBackground = color_from_string(PingSchema.get_string('background'));
 
-  if (!(smDepsGtop)) {
-    Main.__sm = {
-      smdialog: new smDialog()
+  if (!(pingDepsGtop)) {
+    Main.__ping = {
+      pingDialog: new PingDialog()
     };
 
     let dialog_timeout = Mainloop.timeout_add_seconds(
       1,
       function () {
-        Main.__sm.smdialog.open();
+        Main.__ping.pingDialog.open();
         Mainloop.source_remove(dialog_timeout);
         return true;
       });
   } else {
     let panel = Main.panel._rightBox;
-    StatusArea = Main.panel._statusArea;
-    if (typeof (StatusArea) === 'undefined') {
-      StatusArea = Main.panel.statusArea;
+    PingStatusArea = Main.panel._statusArea;
+    if (typeof (PingStatusArea) === 'undefined') {
+      PingStatusArea = Main.panel.statusArea;
     }
 
     // Debug
-    Main.__sm = {
+    Main.__ping = {
       tray: new PanelMenu.Button(0.5),
       icon: new Icon(),
       elts: [],
@@ -1138,23 +1138,23 @@ function build_ping_applet() {
 
     // Items to Monitor
     let isFileOk = false;
-    let path = Schema.get_string('ping-config-path');
+    let path = PingSchema.get_string('ping-config-path');
     if (path == '') {
       path = GLib.getenv('HOME') + '/.config/ping-monitor.conf';
-      Schema.set_string('ping-config-path', path);
+      PingSchema.set_string('ping-config-path', path);
     }
     isFileOk = read_from_file(path);
-    Schema.set_boolean('icon-display', !isFileOk);
+    PingSchema.set_boolean('icon-display', !isFileOk);
 
-    let tray = Main.__sm.tray;
-    let elts = Main.__sm.elts;
+    let tray = Main.__ping.tray;
+    let elts = Main.__ping.elts;
 
-    Schema.connect('changed::background', Lang.bind(
+    PingSchema.connect('changed::background', Lang.bind(
       this, function (schema, key) {
-        Background = color_from_string(Schema.get_string(key));
+        PingBackground = color_from_string(PingSchema.get_string(key));
       }));
     if (!Compat.versionCompare(shell_Version, '3.5.5')) {
-      StatusArea.systemMonitor = tray;
+      PingStatusArea.pingMonitor = tray;
       panel.insert_child_at_index(tray.actor, 1);
       panel.child_set(tray.actor, {y_fill: true});
     } else {
@@ -1163,23 +1163,23 @@ function build_ping_applet() {
 
     // The spacing adds a distance between the graphs/text on the top bar
     let spacing = '4'; // TODO '1' ?
-    box1 = new St.BoxLayout({style: 'spacing: ' + spacing + 'px;'});
+    pingBox = new St.BoxLayout({style: 'spacing: ' + spacing + 'px;'});
     if (shell_Version < '3.36') {
-      tray.actor.add_actor(box1);
+      tray.actor.add_actor(pingBox);
     } else {
-      tray.add_actor(box1);
+      tray.add_actor(pingBox);
     }
-    box1.add_actor(Main.__sm.icon.actor);
-    // Add items to panel box1
+    pingBox.add_actor(Main.__ping.icon.actor);
+    // Add items to panel pingBox
     for (let elt in elts) {
-      box1.add_actor(elts[elt].actor);
+      pingBox.add_actor(elts[elt].actor);
     }
 
     // Build Menu Info Box Table
     let menu_info = new PopupMenu.PopupBaseMenuItem({reactive: false});
     let menu_info_box = new St.BoxLayout();
     menu_info.actor.add(menu_info_box);
-    Main.__sm.tray.menu.addMenuItem(menu_info, 0);
+    Main.__ping.tray.menu.addMenuItem(menu_info, 0);
 
     build_menu_info();
 
@@ -1189,16 +1189,16 @@ function build_ping_applet() {
       'open-state-changed',
       function (menu, isOpen) {
         if (isOpen) {
-          // Main.__sm.pie.actor.queue_repaint();
+          // Main.__ping.pie.actor.queue_repaint();
 
-          menu_timeout = Mainloop.timeout_add_seconds(
+          ping_menu_timeout = Mainloop.timeout_add_seconds(
             5,
             function () {
-              // Main.__sm.pie.actor.queue_repaint();
+              // Main.__ping.pie.actor.queue_repaint();
               return true;
             });
         } else {
-          Mainloop.source_remove(menu_timeout);
+          Mainloop.source_remove(ping_menu_timeout);
         }
       }
     );
@@ -1235,7 +1235,7 @@ function build_ping_applet() {
       Main.panel._menus.addMenu(tray.menu);
     }
 
-    Schema.connect('changed::ping-config-path', Lang.bind(
+    PingSchema.connect('changed::ping-config-path', Lang.bind(
       this, function () {
         print_info("Config path changed.");
         // destroy_ping_applet();
@@ -1252,42 +1252,42 @@ async function reload_async() {
   print_info('Reload ping applet async...');
 
   // Stop creating new timeouts.
-  for (let eltName in Main.__sm.elts) {
-    Main.__sm.elts[eltName].stop();
+  for (let eltName in Main.__ping.elts) {
+    Main.__ping.elts[eltName].stop();
   }
 
   // Wait for running async tasks.
-  for (let eltName in Main.__sm.elts) {
-    while (Main.__sm.elts[eltName].isRunning()) {
+  for (let eltName in Main.__ping.elts) {
+    while (Main.__ping.elts[eltName].isRunning()) {
       print_info('still running');
       await sleep(10);
     }
   }
 
   // Remove from box.
-  for (let eltName in Main.__sm.elts) {
-    box1.remove_actor(Main.__sm.elts[eltName].actor);
+  for (let eltName in Main.__ping.elts) {
+    pingBox.remove_actor(Main.__ping.elts[eltName].actor);
   }
   // Destroy elements.
-  for (let eltName in Main.__sm.elts) {
-    Main.__sm.elts[eltName].destroy();
+  for (let eltName in Main.__ping.elts) {
+    Main.__ping.elts[eltName].destroy();
   }
-  Main.__sm.elts = [];
+  Main.__ping.elts = [];
 
   // Items to Monitor
   let isFileOk = false;
-  let path = Schema.get_string('ping-config-path');
+  let path = PingSchema.get_string('ping-config-path');
   if (path == '') {
     path = GLib.getenv('HOME') + '/.config/ping-monitor.conf';
-    Schema.set_string('ping-config-path', path);
+    PingSchema.set_string('ping-config-path', path);
   }
   isFileOk = read_from_file(path);
-  Schema.set_boolean('icon-display', !isFileOk);
+  PingSchema.set_boolean('icon-display', !isFileOk);
 
   // Add elements to box.
-  let elts = Main.__sm.elts;
+  let elts = Main.__ping.elts;
   for (let elt in elts) {
-    box1.add_actor(elts[elt].actor);
+    pingBox.add_actor(elts[elt].actor);
   }
 
   build_menu_info();
@@ -1301,19 +1301,19 @@ var init = function () {
   Convenience.initTranslations();
   // Get locale, needed as an argument for toLocaleString() since GNOME Shell 3.24
   // See: mozjs library bug https://bugzilla.mozilla.org/show_bug.cgi?id=999003
-  // Locale = GLib.get_language_names()[0];
-  // if (Locale.indexOf('_') !== -1) {
-  //     Locale = Locale.split('_')[0];
+  // PingLocale = GLib.get_language_names()[0];
+  // if (PingLocale.indexOf('_') !== -1) {
+  //     PingLocale = PingLocale.split('_')[0];
   // }
 
-  IconSize = Math.round(Panel.PANEL_ICON_SIZE * 4 / 5);
+  PingIconSize = Math.round(Panel.PANEL_ICON_SIZE * 4 / 5);
 };
 
 var enable = function () {
   print_info('applet enabling');
 
-  // Schema = Convenience.getSettings();
-  // Style = new smStyleManager();
+  // PingSchema = Convenience.getSettings();
+  // PingStyle = new pingStyleManager();
 
   build_ping_applet();
 
@@ -1324,24 +1324,24 @@ var disable = function () {
   print_info('disable applet');
 
   // Stop creating new async tasks.
-  for (let eltName in Main.__sm.elts) {
-    Main.__sm.elts[eltName].stop();
+  for (let eltName in Main.__ping.elts) {
+    Main.__ping.elts[eltName].stop();
   }
 
-  Schema.run_dispose();
+  PingSchema.run_dispose();
   // Remove from box.
-  for (let eltName in Main.__sm.elts) {
-    box1.remove_actor(Main.__sm.elts[eltName].actor);
+  for (let eltName in Main.__ping.elts) {
+    pingBox.remove_actor(Main.__ping.elts[eltName].actor);
   }
-  for (let eltName in Main.__sm.elts) {
-    Main.__sm.elts[eltName].destroy();
+  for (let eltName in Main.__ping.elts) {
+    Main.__ping.elts[eltName].destroy();
   }
   if (shell_Version < '3.36') {
-    Main.__sm.tray.actor.destroy();
+    Main.__ping.tray.actor.destroy();
   } else {
-    Main.__sm.tray.destroy();
+    Main.__ping.tray.destroy();
   }
-  Main.__sm = null;
+  Main.__ping = null;
 
   print_info('applet disabled');
 };
